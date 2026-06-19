@@ -133,6 +133,12 @@ h3{margin:0 0 3px;font-size:.95rem}
   border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);resize:vertical;min-height:64px}
 .previewbox{background:var(--bg);border:1px dashed var(--line);border-radius:14px;padding:14px}
 
+/* staff sign-in overlay (gated admin pages) */
+#loginOverlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;
+  justify-content:center;z-index:50;padding:16px}
+#loginOverlay .loginbox{background:var(--card);border-radius:var(--r);padding:22px;max-width:360px;
+  width:100%;box-shadow:var(--shadow)}
+
 /* embedded on a clinic's own website (iframe ?embed=1) — hide app chrome so it blends in */
 html.embed,html.embed body{background:transparent}
 html.embed .top{display:none}

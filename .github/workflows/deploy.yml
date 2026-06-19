@@ -96,6 +96,7 @@ jobs:
       name: production
       url: https://tovaitech.in
     steps:
+      - uses: actions/checkout@v6   # for scripts/vps/upsert_env.py (secret sync below)
       - name: Configure SSH
         # Secrets:
         #   VPS_HOST     - hostname or IP
@@ -112,6 +113,25 @@ jobs:
             ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           fi
           chmod 600 ~/.ssh/known_hosts
+      - name: Sync app secrets into VPS .env (GitHub-managed)
+        # Push GitHub-managed app secrets into /opt/clinic-app/.env before deploy.sh runs.
+        # The pairs travel base64-encoded over the ssh channel (stdin -> env var P, never argv
+        # or logs; GitHub also masks the raw values). upsert_env.py replaces/append only these
+        # keys and SKIPS empty ones, so an unset secret never blanks an existing value.
+        # We scp the helper from the runner so this works even on the first deploy (before the
+        # VPS repo has it).
+        run: |
+          scp -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
+              scripts/vps/upsert_env.py \
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/upsert_env.py"
+          {
+            printf 'APP_JWT_SECRET=%s\n'          "${{ secrets.APP_JWT_SECRET }}"
+            printf 'APP_SUPERADMIN_EMAIL=%s\n'     "${{ secrets.APP_SUPERADMIN_EMAIL }}"
+            printf 'APP_SUPERADMIN_PASSWORD=%s\n'  "${{ secrets.APP_SUPERADMIN_PASSWORD }}"
+            printf 'APP_DB_APP_PASSWORD=%s\n'      "${{ secrets.APP_DB_APP_PASSWORD }}"
+          } | base64 -w0 | ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+              'P=$(cat); P="$P" python3 /tmp/upsert_env.py /opt/clinic-app/.env; rm -f /tmp/upsert_env.py'
       - name: Run deploy.sh on VPS
         # deploy.sh: pre-deploy data-guard snapshot, git sync, build, alembic/bootstrap,
         # idempotent seed, health-gated container swap, canary smoke, data-preservation

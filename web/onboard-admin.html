@@ -6,7 +6,8 @@
 <meta name="theme-color" content="#0e7c66"/>
 <meta http-equiv="Cache-Control" content="no-store"/>
 <title>Clinic approvals · provider</title>
-<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=7"/>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=8"/>
+<script src="/appointments/assets/admin-auth.js"></script>
 </head>
 <body>
 <div class="top">
@@ -34,7 +35,7 @@ const clearError = () => $('#error').classList.add('hidden');
 async function load(){
   clearError();
   try{
-    const r = await fetch(`${API}/onboarding/pending`);
+    const r = await authFetch(`${API}/onboarding/pending`);
     const d = await r.json();
     const rows = d.pending || [];
     $('#count').textContent = rows.length;
@@ -72,7 +73,7 @@ async function load(){
 async function approve(slug, btn){
   clearError(); btn.disabled = true; btn.textContent = 'Approving…';
   try{
-    const r = await fetch(`${API}/onboarding/override`, {
+    const r = await authFetch(`${API}/onboarding/override`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({slug, reason:'provider approved'})});
     const d = await r.json();
@@ -81,6 +82,7 @@ async function approve(slug, btn){
   }catch(e){ showError('Network error.'); btn.disabled=false; btn.textContent='Approve go-live'; }
 }
 
+requireLogin();
 load();
 </script>
 </body>

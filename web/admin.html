@@ -6,7 +6,8 @@
 <meta name="theme-color" content="#0e7c66"/>
 <meta http-equiv="Cache-Control" content="no-store"/>
 <title>Integrations setup · admin</title>
-<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=7"/>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=8"/>
+<script src="/appointments/assets/admin-auth.js"></script>
 </head>
 <body>
 <div class="top">
@@ -76,7 +77,7 @@ function statusPill(el, mode, ready){
 
 async function loadStatus(){
   try{
-    const r = await fetch(`${API}/admin/integrations/status`);
+    const r = await authFetch(`${API}/admin/integrations/status`);
     if(!r.ok) throw new Error('status '+r.status);
     const s = await r.json();
     const wa = s.whatsapp, bh = s.bhashini;
@@ -106,7 +107,7 @@ $('#wa_save').onclick = async ()=>{
   const body = { mode:$('#wa_mode').value, base_url:val('#wa_base_url'), token:val('#wa_token'),
     phone_number_id:val('#wa_phone_number_id'), business_account_id:val('#wa_business_account_id'),
     verify_token:val('#wa_verify_token'), display_number:val('#wa_display_number') };
-  const r = await fetch(`${API}/admin/integrations/whatsapp`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r = await authFetch(`${API}/admin/integrations/whatsapp`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.ok){ $('#wa_token').value=''; await loadStatus(); result('#wa_result', true, 'Saved.'); }
   else result('#wa_result', false, 'Save failed ('+r.status+')');
 };
@@ -115,23 +116,24 @@ $('#bh_save').onclick = async ()=>{
   const body = { mode:$('#bh_mode').value, base_url:val('#bh_base_url'), api_key:val('#bh_api_key'),
     user_id:val('#bh_user_id'), translate_pipeline:val('#bh_translate_pipeline'), transliterate_pipeline:val('#bh_transliterate_pipeline'),
     asr_pipeline:val('#bh_asr_pipeline'), tts_pipeline:val('#bh_tts_pipeline'), languages:val('#bh_languages') };
-  const r = await fetch(`${API}/admin/integrations/bhashini`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r = await authFetch(`${API}/admin/integrations/bhashini`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.ok){ $('#bh_api_key').value=''; await loadStatus(); result('#bh_result', true, 'Saved.'); }
   else result('#bh_result', false, 'Save failed ('+r.status+')');
 };
 $('#wa_test').onclick = async ()=>{
   const to = val('#wa_test_phone'); if(!to){ result('#wa_result', false, 'Enter a test number'); return; }
-  const r = await fetch(`${API}/admin/integrations/whatsapp/test`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_phone:to})});
+  const r = await authFetch(`${API}/admin/integrations/whatsapp/test`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_phone:to})});
   const d = await r.json();
   result('#wa_result', d.sent && d.sent.ok, d.sent ? ('mode='+d.sent.mode+(d.sent.ok?' · sent ✓':' · failed: '+(d.sent.error||''))) : 'error');
 };
 $('#bh_test').onclick = async ()=>{
   const text = val('#bh_test_text') || 'Book appointment';
-  const r = await fetch(`${API}/admin/integrations/bhashini/test`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,target_lang:'ml'})});
+  const r = await authFetch(`${API}/admin/integrations/bhashini/test`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,target_lang:'ml'})});
   const d = await r.json();
   result('#bh_result', true, '“'+d.source+'” → “'+d.translated+'”' + (d.used_fallback?' (fallback)':' (live)'));
 };
 
+requireLogin();
 loadStatus();
 </script>
 </body>

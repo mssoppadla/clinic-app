@@ -8,7 +8,7 @@ Each step builds on the state created by the previous one (one clinic, threaded 
 from __future__ import annotations
 
 
-def test_clinic_full_lifecycle_register_to_booking(client):
+def test_clinic_full_lifecycle_register_to_booking(client, superadmin_headers):
     # 1) REGISTER — new clinic, pending, not live
     reg = client.post("/onboarding/clinic", json={
         "name": "Riverside Multispecialty",
@@ -45,7 +45,7 @@ def test_clinic_full_lifecycle_register_to_booking(client):
     assert st["mandatory_met"] is True and st["go_live"] is False  # ready, but not yet approved
 
     # 4) ACTIVATE — provider approves go-live
-    appr = client.post("/onboarding/override", json={"slug": slug, "reason": "all checks passed"})
+    appr = client.post("/onboarding/override", headers=superadmin_headers, json={"slug": slug, "reason": "all checks passed"})
     assert appr.status_code == 200
     assert appr.json()["go_live"] is True and appr.json()["status"] == "active"
 

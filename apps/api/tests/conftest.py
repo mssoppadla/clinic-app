@@ -35,6 +35,24 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture()
+def superadmin_headers(client):
+    """A logged-in superadmin's Authorization header (for the gated provider/admin endpoints)."""
+    from app.core.db import system_session
+    from app.core.security import hash_password
+    from app.models import User, UserRole
+    email = "root@tovaitech.test"
+    with system_session() as db:
+        if db.query(User).filter(User.email == email).first() is None:
+            u = User(email=email, password_hash=hash_password("rootpass123"),
+                     must_reset_password=False, status="active")
+            db.add(u)
+            db.flush()
+            db.add(UserRole(user_id=u.id, tenant_id=None, role="superadmin"))
+    r = client.post("/auth/login", json={"email": email, "password": "rootpass123"})
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
 @pytest.fixture(autouse=True)
 def _reset_integration_config():
     # integration_config is global (platform scope); reset before each test so providers

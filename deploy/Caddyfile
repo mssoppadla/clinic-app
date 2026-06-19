@@ -3,9 +3,10 @@
 #   /appointments(/)          -> onboarding landing / clinic registration (appointments.html)
 #   /appointments/onboard     -> same registration page (mock's onboarding entry)
 #   /appointments/onboard-admin -> provider go-live approvals (onboard-admin.html; auth Phase 2)
+#   /appointments/admin       -> clinic integrations admin (admin.html)
 #   /appointments/assets/*    -> clinic-app static assets (e.g. styles/app.css)
 #   /appointments/<clinic-slug> -> patient booking app (index.html; slug read from the path)
-#   /admin*                   -> clinic admin (admin.html)
+#   (/admin is intentionally NOT handled here — reserved for the company site's future admin)
 #   /api/*                    -> FastAPI (unstripped; app serves routes under /api/v1 via root_path)
 :80 {
 	handle /api/* {
@@ -47,15 +48,17 @@
 		rewrite * /onboard-admin.html
 		file_server
 	}
+	# Clinic integrations admin — under /appointments/* like the other admin pages.
+	@adminpage path /appointments/admin /appointments/admin/ /appointments/admin.html
+	handle @adminpage {
+		root * /srv/web
+		rewrite * /admin.html
+		file_server
+	}
 	# Everything else under /appointments/<slug> is a clinic's patient booking page.
 	handle /appointments/* {
 		root * /srv/web
 		rewrite * /index.html
-		file_server
-	}
-	handle /admin* {
-		root * /srv/web
-		rewrite * /admin.html
 		file_server
 	}
 	# "/" belongs to the company site (separate stack). Any stray hit here -> company landing.

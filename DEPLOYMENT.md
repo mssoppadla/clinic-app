@@ -42,9 +42,16 @@ Two manual gates, exactly as cpmai: (1) approve+merge the PR, (2) approve the pr
 | `VPS_USER` | deploy user (e.g. `deploy`) |
 | `VPS_SSH_KEY` | private key (ed25519 recommended) for that user |
 | `VPS_HOST_KEY` | output of `ssh-keyscan <VPS_HOST>` (host-key pinning) |
+| `APP_JWT_SECRET` | JWT signing secret (≥32 chars; `openssl rand -hex 32`) |
+| `APP_SUPERADMIN_EMAIL` | root superadmin email (seeded if absent) |
+| `APP_SUPERADMIN_PASSWORD` | root superadmin initial password (force-reset on first login) |
+| `APP_DB_APP_PASSWORD` | password for the non-superuser `clinic_app` DB role (RLS) |
 
-> App secrets (WhatsApp token, Bhashini key, Postgres password) are NOT GitHub secrets —
-> they live in `/opt/clinic-app/.env` on the VPS, or are set at runtime via the admin screen.
+> The four `APP_*` secrets are **GitHub-managed**: on each deploy, `deploy.yml` upserts them
+> into `/opt/clinic-app/.env` (base64 over the ssh channel; empty/unset ones are skipped so they
+> never blank an existing value). Rotate by editing the GitHub secret and re-deploying.
+> Other app secrets (WhatsApp token, Bhashini key, `POSTGRES_PASSWORD`) still live in
+> `/opt/clinic-app/.env` on the VPS or are set at runtime via the admin screen.
 
 ## One-time VPS prep (co-hosted with cpmai, isolated)
 ```bash

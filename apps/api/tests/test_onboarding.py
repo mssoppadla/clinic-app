@@ -13,7 +13,7 @@ def test_slug_available_normalizes_and_rejects_reserved(client):
     assert r.json()["reason"] == "reserved"
 
 
-def test_register_then_gated_then_approved(client):
+def test_register_then_gated_then_approved(client, superadmin_headers):
     # 1. register -> created, not live
     r = client.post("/onboarding/clinic", json={
         "name": "Green Cross", "contact_name": "Dr. Menon",
@@ -32,11 +32,11 @@ def test_register_then_gated_then_approved(client):
     assert r.json()["error"]["code"] == "clinic_not_live"
 
     # 3. shows up in the provider's pending list
-    pending = client.get("/onboarding/pending").json()["pending"]
+    pending = client.get("/onboarding/pending", headers=superadmin_headers).json()["pending"]
     assert any(p["slug"] == slug for p in pending)
 
     # 4. provider approves go-live -> now live
-    r = client.post("/onboarding/override", json={"slug": slug, "reason": "verified"})
+    r = client.post("/onboarding/override", headers=superadmin_headers, json={"slug": slug, "reason": "verified"})
     assert r.status_code == 200
     assert r.json()["go_live"] is True and r.json()["status"] == "active"
 
@@ -45,7 +45,7 @@ def test_register_then_gated_then_approved(client):
     assert r.json()["slug"] == slug
 
 
-def test_appearance_config_roundtrip_and_reflected_publicly(client):
+def test_appearance_config_roundtrip_and_reflected_publicly(client, superadmin_headers):
     # register with initial branding
     reg = client.post("/onboarding/clinic", json={
         "name": "Sunrise Clinic",
@@ -67,7 +67,7 @@ def test_appearance_config_roundtrip_and_reflected_publicly(client):
     assert b["book_label"] == "Reserve now" and b["show_header"] is True
 
     # after go-live, the public clinic view carries the branding (hosted + embed render it)
-    client.post("/onboarding/override", json={"slug": slug})
+    client.post("/onboarding/override", headers=superadmin_headers, json={"slug": slug})
     pub = client.get(f"/clinics/{slug}").json()
     assert pub["branding"]["accent"] == "#0000aa"
     assert pub["branding"]["book_label"] == "Reserve now"
