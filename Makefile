@@ -12,10 +12,10 @@ bootstrap:       ## create/upgrade the local DB schema + seed canary
 
 docker-test:     ## prod-like: bring up the full stack in Docker and run the canary smoke
 	cp -n .env.example .env || true
-	docker compose -p clinic-saas -f deploy/docker-compose.yml up -d --build
+	docker compose --env-file .env -p clinic-saas -f deploy/docker-compose.yml up -d --build
 	@echo "waiting for health..."; for i in $$(seq 1 40); do curl -fsS http://localhost:8080/api/v1/healthz >/dev/null 2>&1 && break || sleep 3; done
 	BASE_URL=http://localhost:8080/api/v1 python3 e2e/smoke.py
-	docker compose -p clinic-saas -f deploy/docker-compose.yml down
+	docker compose --env-file .env -p clinic-saas -f deploy/docker-compose.yml down
 
 run:             ## run API locally (sqlite)
 	cd apps/api && PYTHONPATH=. APP_DATABASE_URL=sqlite+pysqlite:///./local.db python -m app.seed && \

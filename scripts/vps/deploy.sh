@@ -6,7 +6,7 @@
 # compose project + DB, so cpmai is never touched.
 set -euo pipefail
 cd "$(dirname "$0")/../.."                      # repo root
-COMPOSE="docker compose -p clinic-saas -f deploy/docker-compose.yml"
+COMPOSE="docker compose --env-file .env -p clinic-saas -f deploy/docker-compose.yml"
 [ -f .env ] && set -a && . ./.env && set +a
 PREV="$(git rev-parse HEAD)"
 GUARD_TABLES="tenants doctors patients bookings booking_events tokens queue_entries"
