@@ -24,7 +24,17 @@ class Settings(BaseSettings):
     cors_origins: str = ""  # comma-separated; e.g. "http://localhost:8080" for local web
 
     # --- database (Postgres in real envs; SQLite only for sandbox tests) ---
+    # database_url = the connection the APP serves requests on. In prod this is the
+    # non-superuser app role so Postgres RLS actually enforces (superusers bypass RLS).
     database_url: str = "sqlite+pysqlite:///./local.db"
+    # admin_database_url = a superuser/owner connection used ONLY by bootstrap/migrations to
+    # create the app role, the schema, RLS policies, and grants. Falls back to database_url
+    # for single-role/dev/SQLite (where the distinction doesn't apply).
+    admin_database_url: str = ""
+
+    @property
+    def admin_url(self) -> str:
+        return self.admin_database_url or self.database_url
 
     # --- tenancy ---
     canary_slug: str = "__canary__"

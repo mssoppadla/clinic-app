@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from .core.config import get_settings
-from .core.db import engine, session_scope
+from .core.db import engine, system_session
 from .models import Base, Doctor, Session, Tenant
 
 
@@ -18,7 +18,9 @@ def ensure_schema() -> None:
 
 def seed_canary() -> dict:
     settings = get_settings()
-    with session_scope() as db:
+    # system_session bypasses RLS: the seed creates the canary tenant + its doctor/session
+    # before any per-request tenant context exists.
+    with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == settings.canary_slug).first()
         if tenant is None:
             tenant = Tenant(

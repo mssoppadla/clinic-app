@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session as OrmSession
 from sqlalchemy.orm import sessionmaker
 
@@ -22,6 +22,15 @@ _settings = get_settings()
 _connect_args = {"check_same_thread": False} if _settings.database_url.startswith("sqlite") else {}
 engine = create_engine(_settings.database_url, future=True, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, class_=OrmSession)
+
+_IS_PG = engine.dialect.name == "postgresql"
+
+
+def _set_local(db: OrmSession, key: str, value: str) -> None:
+    """Set a transaction-local Postgres GUC (no-op on SQLite). Auto-begins a txn; the
+    setting resets on commit/rollback, so it never leaks across pooled connections."""
+    if _IS_PG:
+        db.execute(text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value})
 
 
 class ScopedQuery:
@@ -58,12 +67,31 @@ def session_scope() -> Iterator[OrmSession]:
         db.close()
 
 
+@contextmanager
+def system_session() -> Iterator[OrmSession]:
+    """Like session_scope but BYPASSES RLS — for trusted, cross-/no-tenant server work
+    (bootstrap, seed, provider/onboarding). Never use it for patient/clinic request paths."""
+    db = SessionLocal()
+    try:
+        _set_local(db, "app.rls_bypass", "on")
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 class TenantScope:
     """Wraps a DB session and forces tenant_id on reads and writes."""
 
     def __init__(self, db: OrmSession, tenant_id: str):
         self.db = db
         self.tenant_id = tenant_id
+        # DB-layer half of isolation: scope this transaction to the tenant so Postgres RLS
+        # only exposes/accepts this tenant's rows (no-op on SQLite).
+        _set_local(db, "app.tenant_id", tenant_id)
 
     def add(self, obj):
         if hasattr(obj, "tenant_id") and not getattr(obj, "tenant_id", None):

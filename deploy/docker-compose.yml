@@ -18,7 +18,12 @@ services:
     env_file: [../.env]
     environment:
       APP_ENV: prod
-      APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-clinic}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-clinic}
+      # Admin/owner connection (superuser) — used by bootstrap/migrations to create the app
+      # role, schema, RLS policies and grants.
+      APP_ADMIN_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-clinic}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-clinic}
+      # App connection (non-superuser 'clinic_app' role) — what the API serves requests on,
+      # so Postgres RLS actually enforces. Password REQUIRED in .env (bootstrap creates the role).
+      APP_DATABASE_URL: postgresql+psycopg://clinic_app:${APP_DB_APP_PASSWORD:?set APP_DB_APP_PASSWORD in .env}@db:5432/${POSTGRES_DB:-clinic}
     depends_on:
       db: { condition: service_healthy }
     restart: unless-stopped          # single replica for now; zero-downtime (>=2 + migration lock) is a later refinement
