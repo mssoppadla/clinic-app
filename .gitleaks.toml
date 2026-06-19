@@ -6,6 +6,10 @@ id = "app-secret-env"
 description = "App secret assigned a real value in code"
 regex = '''(?i)(APP_(WHATSAPP_TOKEN|BHASHINI_API_KEY)|POSTGRES_PASSWORD)\s*[:=]\s*["']?[A-Za-z0-9_\-]{6,}'''
 [allowlist]
-description = "placeholders and examples are fine"
-paths = ['''\.env\.example$''', '''README\.md$''']
-regexes = ['''change-me''', '''<.*>''', '''=\s*["']?\s*$''']
+description = "placeholders, examples, and ephemeral CI/test values are fine"
+regexTarget = "line"   # match the whole line so value-based allowlists (e.g. clinic_test) work
+# .env.example + README placeholders; CI workflow YAML (real secrets use ${{ secrets.* }}).
+paths = ['''\.env\.example$''', '''README\.md$''', '''\.github/workflows/.*\.ya?ml$''']
+# change-me* placeholders; <...> templates; empty assignments; and clinic_test — the throwaway
+# Postgres password used only by the CI/preflight migration-drift DB (never a real secret).
+regexes = ['''change-me''', '''<.*>''', '''=\s*["']?\s*$''', '''clinic_test''']

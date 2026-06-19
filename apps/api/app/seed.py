@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 
 from .core.config import get_settings
 from .core.db import engine, system_session
-from .models import Base, Doctor, Session, Tenant
+from .core.security import hash_password
+from .models import Base, Doctor, Session, Tenant, User, UserRole
 
 
 def ensure_schema() -> None:
@@ -53,6 +54,26 @@ def seed_canary() -> dict:
                 "doctor_id": doctor.id, "session_id": session.id}
 
 
+def seed_superadmin() -> dict:
+    """Create the root superadmin from env if absent (force reset on first login). Idempotent.
+    Skipped if APP_SUPERADMIN_EMAIL/PASSWORD are not set (e.g. CI/tests)."""
+    settings = get_settings()
+    email = (settings.superadmin_email or "").strip().lower()
+    if not email or not settings.superadmin_password:
+        return {"superadmin": "skipped (no APP_SUPERADMIN_EMAIL/PASSWORD)"}
+    with system_session() as db:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            user = User(email=email, password_hash=hash_password(settings.superadmin_password),
+                        must_reset_password=True, status="active")
+            db.add(user)
+            db.flush()
+            db.add(UserRole(user_id=user.id, tenant_id=None, role="superadmin"))
+            return {"superadmin": email, "created": True}
+        return {"superadmin": email, "created": False}
+
+
 if __name__ == "__main__":
     ensure_schema()
     print(seed_canary())
+    print(seed_superadmin())

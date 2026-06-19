@@ -6,4 +6,6 @@ pydantic-settings>=2.2
 httpx>=0.27
 alembic>=1.13
 psycopg[binary]>=3.1   # Postgres driver for real/local-docker; SQLite needs no driver
+pyjwt>=2.8             # staff/patient session tokens (HS256)
+bcrypt>=4.1            # password hashing
 pytest>=8.0

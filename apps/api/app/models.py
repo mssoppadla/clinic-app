@@ -43,6 +43,30 @@ class Tenant(Base):
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
+class User(Base):
+    """Staff/doctor/admin/superadmin login. Identity is cross-tenant; clinic membership +
+    role live in user_roles (superadmin has a role row with tenant_id=NULL). [AC1-AC18]"""
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    email: Mapped[str] = mapped_column(String(200), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(200), default="")
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)  # WhatsApp OTP target
+    status: Mapped[str] = mapped_column(String(20), default="active")     # active|revoked
+    must_reset_password: Mapped[bool] = mapped_column(Boolean, default=True)
+    mfa: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+    __table_args__ = (UniqueConstraint("user_id", "tenant_id", "role", name="uq_user_role"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
+    tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # NULL = superadmin
+    role: Mapped[str] = mapped_column(String(30))  # superadmin|clinic_admin|doctor|front_desk|triage
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
 class Doctor(Base):
     __tablename__ = "doctors"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

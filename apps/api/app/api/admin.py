@@ -6,13 +6,16 @@ GET never returns a secret value, only whether it is configured.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..core import integration_config as cfg
 from ..integrations import bhashini, whatsapp
+from .deps import require_role
 
-router = APIRouter(prefix="/admin/integrations", tags=["admin"])
+# Platform integration config (secrets) — superadmin only [AC1].
+router = APIRouter(prefix="/admin/integrations", tags=["admin"],
+                   dependencies=[Depends(require_role("superadmin"))])
 
 PROVIDERS = ("whatsapp", "bhashini")
 

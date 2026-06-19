@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from ..core.config import get_settings
@@ -25,6 +25,7 @@ from ..core.db import system_session
 from ..core.errors import AppError
 from ..core import slug as slugmod
 from ..models import Doctor, Session as ClinicSession, Tenant
+from .deps import require_role
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 log = logging.getLogger("onboarding")
@@ -183,8 +184,8 @@ def onboarding_status(slug: str):
 
 
 @router.get("/pending")
-def pending_clinics():
-    """Provider view: clinics awaiting go-live approval (auth deferred to Phase 2)."""
+def pending_clinics(_: dict = Depends(require_role("superadmin"))):
+    """Provider view: clinics awaiting go-live approval (superadmin only)."""
     with system_session() as db:
         rows = db.query(Tenant).filter(Tenant.go_live.is_(False)).all()
         return {"pending": [
@@ -246,8 +247,8 @@ def save_appearance(body: AppearanceIn):
 
 
 @router.post("/override")
-def approve_go_live(body: OverrideIn):
-    """Provider approves / force go-live (audited). Auth deferred to Phase 2."""
+def approve_go_live(body: OverrideIn, _: dict = Depends(require_role("superadmin"))):
+    """Provider approves / force go-live (audited; superadmin only)."""
     with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == body.slug).first()
         if tenant is None:

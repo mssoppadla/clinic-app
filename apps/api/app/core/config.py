@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     # --- tenancy ---
     canary_slug: str = "__canary__"
 
+    # --- auth (Phase 2) ---
+    jwt_secret: str = "dev-insecure-change-me-please-override-in-prod"  # override via APP_JWT_SECRET
+    jwt_access_ttl_min: int = 30
+    jwt_refresh_ttl_days: int = 7
+    # First/root superadmin, seeded if absent (force password reset on first login).
+    superadmin_email: str = ""
+    superadmin_password: str = ""
+
     # --- queue / ETA (configurable, never hardcoded in logic) ---
     avg_consult_minutes: int = 6
     default_session_capacity: int = 40
