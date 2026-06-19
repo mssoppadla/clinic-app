@@ -5,12 +5,25 @@ and only mints new access tokens. Secret + TTLs come from settings (env).
 """
 from __future__ import annotations
 
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
 
 from .config import get_settings
+
+_PW_ALPHABET = string.ascii_letters + string.digits
+
+
+def generate_temp_password(length: int = 12) -> str:
+    """A readable random temp password for admin-created users (force-reset on first login)."""
+    return "".join(secrets.choice(_PW_ALPHABET) for _ in range(length))
+
+
+def generate_otp(digits: int = 6) -> str:
+    return "".join(secrets.choice(string.digits) for _ in range(digits))
 
 
 def hash_password(plain: str) -> str:

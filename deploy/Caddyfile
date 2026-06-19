@@ -55,6 +55,13 @@
 		rewrite * /admin.html
 		file_server
 	}
+	# Team & user management (clinic_admin / superadmin).
+	@userspage path /appointments/users /appointments/users/
+	handle @userspage {
+		root * /srv/web
+		rewrite * /users.html
+		file_server
+	}
 	# Everything else under /appointments/<slug> is a clinic's patient booking page.
 	handle /appointments/* {
 		root * /srv/web

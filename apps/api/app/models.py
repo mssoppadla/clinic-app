@@ -67,6 +67,20 @@ class UserRole(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
+class OtpChallenge(Base):
+    """Short-lived OTP for password reset (delivered via WhatsApp). [AC15, AC17]"""
+    __tablename__ = "otp_challenges"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    destination: Mapped[str] = mapped_column(String(120), default="")   # phone the OTP was sent to
+    purpose: Mapped[str] = mapped_column(String(30), default="password_reset")
+    code_hash: Mapped[str] = mapped_column(String(200))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
 class Doctor(Base):
     __tablename__ = "doctors"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
