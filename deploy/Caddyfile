@@ -1,11 +1,21 @@
 # Routing (served behind the front proxy that terminates TLS for tovaitech.in):
 #   /            -> Tovaitech company landing (landing.html)
 #   /appointments/<clinic-slug> -> patient booking app (index.html; slug read from the path)
+#   /appointments/assets/* -> clinic-app static assets (e.g. styles/app.css)
 #   /admin*      -> clinic admin (admin.html)
 #   /api/*       -> FastAPI (unstripped; app serves routes under /api/v1 via root_path)
 :80 {
 	handle /api/* {
 		reverse_proxy api:8000
+	}
+	# Clinic-app's own static assets. MUST sit under /appointments/* because the front
+	# proxy only routes /appointments/*, /admin*, /api/* to this stack; the root /styles/*
+	# path belongs to the separate company-site stack. handle_path strips the prefix, so
+	# /appointments/assets/styles/app.css -> /srv/web/styles/app.css. Declared before the
+	# /appointments/* page route so it is not swallowed by the index.html rewrite.
+	handle_path /appointments/assets/* {
+		root * /srv/web
+		file_server
 	}
 	handle /admin* {
 		root * /srv/web
