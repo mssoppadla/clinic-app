@@ -12,7 +12,19 @@ PREV="$(git rev-parse HEAD)"
 GUARD_TABLES="tenants doctors patients bookings booking_events tokens queue_entries"
 
 snapshot(){ for t in $GUARD_TABLES; do echo "$t=$($COMPOSE exec -T db psql -U "${POSTGRES_USER:-clinic}" -d "${POSTGRES_DB:-clinic}" -tAc "SELECT count(*) FROM $t" 2>/dev/null || echo NA)"; done; }
-rollback(){ echo "!! deploy failed -> rolling back to $PREV"; git reset --hard "$PREV"; $COMPOSE up -d --build; exit 1; }
+rollback(){
+  trap - ERR                                   # don't re-enter rollback if rollback itself errors
+  echo "!! deploy failed -> rolling back to $PREV"
+  git reset --hard "$PREV"
+  $COMPOSE up -d --build
+  $COMPOSE up -d --force-recreate caddy        # re-resolve the bind-mounted Caddyfile (see [4b])
+  echo "!! rolled back to $PREV"
+  exit 1
+}
+# Any unexpected failure (sync/build/up/bootstrap-crash) -> roll back to the last good commit.
+# Explicit '|| rollback' on the health/smoke/data checks below still apply (those are handled,
+# so they don't trip this trap); this catches everything else.
+trap rollback ERR
 
 echo "[1/7] pre-deploy data-guard snapshot"
 BEFORE="$(snapshot || true)"; echo "$BEFORE"

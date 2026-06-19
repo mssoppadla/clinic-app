@@ -6,6 +6,9 @@ id = "app-secret-env"
 description = "App secret assigned a real value in code"
 regex = '''(?i)(APP_(WHATSAPP_TOKEN|BHASHINI_API_KEY)|POSTGRES_PASSWORD)\s*[:=]\s*["']?[A-Za-z0-9_\-]{6,}'''
 [allowlist]
-description = "placeholders and examples are fine"
-paths = ['''\.env\.example$''', '''README\.md$''']
+description = "placeholders, examples, and CI workflow test values are fine"
+# .env.example + README placeholders; and CI workflow YAML — real secrets there are referenced
+# via ${{ secrets.* }}, never literals; only ephemeral test values (e.g. the migration-drift
+# Postgres password) appear inline.
+paths = ['''\.env\.example$''', '''README\.md$''', '''\.github/workflows/.*\.ya?ml$''']
 regexes = ['''change-me''', '''<.*>''', '''=\s*["']?\s*$''']
