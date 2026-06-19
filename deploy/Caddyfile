@@ -1,9 +1,12 @@
 # Routing (served behind the front proxy that terminates TLS for tovaitech.in):
-#   /            -> Tovaitech company landing (landing.html)
+#   /                         -> Tovaitech company landing (separate stack)
+#   /appointments(/)          -> onboarding landing / clinic registration (appointments.html)
+#   /appointments/onboard     -> same registration page (mock's onboarding entry)
+#   /appointments/onboard-admin -> provider go-live approvals (onboard-admin.html; auth Phase 2)
+#   /appointments/assets/*    -> clinic-app static assets (e.g. styles/app.css)
 #   /appointments/<clinic-slug> -> patient booking app (index.html; slug read from the path)
-#   /appointments/assets/* -> clinic-app static assets (e.g. styles/app.css)
-#   /admin*      -> clinic admin (admin.html)
-#   /api/*       -> FastAPI (unstripped; app serves routes under /api/v1 via root_path)
+#   /admin*                   -> clinic admin (admin.html)
+#   /api/*                    -> FastAPI (unstripped; app serves routes under /api/v1 via root_path)
 :80 {
 	handle /api/* {
 		reverse_proxy api:8000
@@ -11,20 +14,48 @@
 	# Clinic-app's own static assets. MUST sit under /appointments/* because the front
 	# proxy only routes /appointments/*, /admin*, /api/* to this stack; the root /styles/*
 	# path belongs to the separate company-site stack. handle_path strips the prefix, so
-	# /appointments/assets/styles/app.css -> /srv/web/styles/app.css. Declared before the
-	# /appointments/* page route so it is not swallowed by the index.html rewrite.
+	# /appointments/assets/styles/app.css -> /srv/web/styles/app.css.
 	handle_path /appointments/assets/* {
 		root * /srv/web
+		file_server
+	}
+	# Onboarding landing + registration. Reserved (non-slug) paths under /appointments.
+	@onboarding path /appointments /appointments/ /appointments/onboard /appointments/onboard/
+	handle @onboarding {
+		root * /srv/web
+		rewrite * /appointments.html
+		file_server
+	}
+	# Onboarding: add doctors & slots.
+	@doctors path /appointments/onboard/doctors /appointments/onboard/doctors/
+	handle @doctors {
+		root * /srv/web
+		rewrite * /doctors.html
+		file_server
+	}
+	# Appearance configurator (brand colours/text/logo + embed snippet).
+	@customize path /appointments/onboard/customize /appointments/onboard/customize/
+	handle @customize {
+		root * /srv/web
+		rewrite * /customize.html
+		file_server
+	}
+	# Provider go-live approvals (unlinked; auth wired in Phase 2).
+	@approvals path /appointments/onboard-admin /appointments/onboard-admin/
+	handle @approvals {
+		root * /srv/web
+		rewrite * /onboard-admin.html
+		file_server
+	}
+	# Everything else under /appointments/<slug> is a clinic's patient booking page.
+	handle /appointments/* {
+		root * /srv/web
+		rewrite * /index.html
 		file_server
 	}
 	handle /admin* {
 		root * /srv/web
 		rewrite * /admin.html
-		file_server
-	}
-	handle /appointments/* {
-		root * /srv/web
-		rewrite * /index.html
 		file_server
 	}
 	# "/" belongs to the company site (separate stack). Any stray hit here -> company landing.

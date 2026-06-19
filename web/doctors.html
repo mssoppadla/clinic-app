@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Doctors & slots · tovaitech appointments</title>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=7"/>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo">T</div>
+  <div><h1>Doctors &amp; slots<span class="ml">ഡോക്ടർമാരും സ്ലോട്ടുകളും</span></h1><p id="forClinic">Onboarding · add availability</p></div>
+</div>
+
+<div class="wrap">
+  <div id="error" class="err hidden"></div>
+
+  <section class="card">
+    <div class="cardhead"><h3>Go-live checklist</h3><span id="readyPill" class="pill n">…</span></div>
+    <div id="checklist" class="checklist"></div>
+  </section>
+
+  <section class="card">
+    <div class="ident"><b>Add a doctor &amp; today's slots</b></div>
+    <p class="hint">A clinic needs at least one doctor with slots to go live. Add one (or more) here.</p>
+    <div class="field"><label>Doctor name</label>
+      <input class="input" id="doc_name" placeholder="e.g. Dr. Menon"/></div>
+    <div class="grid2">
+      <div class="field"><label>Specialty</label>
+        <input class="input" id="doc_specialty" placeholder="e.g. General Medicine"/></div>
+      <div class="field"><label>Consultation fee (₹)</label>
+        <input class="input" id="doc_fee" inputmode="decimal" placeholder="300"/></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Session label</label>
+        <input class="input" id="doc_session" placeholder="Morning"/></div>
+      <div class="field"><label>Capacity (tokens)</label>
+        <input class="input" id="doc_capacity" inputmode="numeric" placeholder="40"/></div>
+    </div>
+    <button class="btn" id="saveDoctor" type="button">Add doctor &amp; slots</button>
+    <div id="added"></div>
+  </section>
+
+  <a class="btn ghost" id="backLink" href="#" style="margin-top:4px">Back to setup</a>
+</div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
+const apiSuffix = Q.get('api') ? `&api=${encodeURIComponent(Q.get('api'))}` : '';
+const SLUG = Q.get('slug') || '';
+const $ = s => document.querySelector(s);
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); window.scrollTo(0,0); };
+const clearError = () => $('#error').classList.add('hidden');
+const added = [];
+
+$('#backLink').href = `/appointments/onboard?slug=${encodeURIComponent(SLUG)}${apiSuffix}`;
+
+function renderChecklist(readiness){
+  const met = readiness && readiness.mandatory_met;
+  $('#readyPill').textContent = met ? 'all mandatory met' : 'incomplete';
+  $('#readyPill').className = 'pill ' + (met ? 'g' : 'a');
+  const items = (readiness && readiness.mandatory) || [];
+  $('#checklist').innerHTML = items.map(it=>
+    `<div class="kv"><span>${it.label}</span><span class="pill ${it.done?'g':'n'}">${it.done?'✓':'todo'}</span></div>`).join('');
+}
+
+function renderAdded(){
+  if(!added.length){ $('#added').innerHTML=''; return; }
+  $('#added').innerHTML = '<div class="muted" style="margin:12px 0 6px">Added</div>' +
+    added.map(d=>`<div class="kv"><span><b>${d.name}</b> <span class="muted">${d.specialty||''}${d.fee?(' · ₹'+d.fee):''}</span></span><span class="pill g">✓ slots</span></div>`).join('');
+}
+
+async function load(){
+  if(!SLUG){ showError('No clinic specified. Open this from your onboarding screen.'); return; }
+  $('#forClinic').textContent = `Clinic: ${SLUG}`;
+  try{
+    const r = await fetch(`${API}/onboarding/status?slug=${encodeURIComponent(SLUG)}`);
+    if(!r.ok) throw 0;
+    renderChecklist(await r.json());
+  }catch(e){ showError('Could not load this clinic.'); }
+}
+
+$('#saveDoctor').onclick = async ()=>{
+  clearError();
+  const name = $('#doc_name').value.trim();
+  if(name.length < 2){ showError('Enter the doctor name.'); return; }
+  const fee = parseFloat($('#doc_fee').value) || null;
+  const body = { name, specialty: $('#doc_specialty').value.trim() || null,
+    fee_inr: fee, session_label: $('#doc_session').value.trim() || null,
+    capacity: parseInt($('#doc_capacity').value,10) || null };
+  $('#saveDoctor').disabled = true;
+  try{
+    const r = await fetch(`${API}/onboarding/clinic/${encodeURIComponent(SLUG)}/doctor`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error && d.error.message) || 'Could not add doctor'); return; }
+    added.push({name, specialty: body.specialty, fee});
+    renderAdded();
+    renderChecklist(d.readiness);
+    ['doc_name','doc_specialty','doc_fee','doc_session','doc_capacity'].forEach(id=>$('#'+id).value='');
+  }catch(e){ showError('Network error — please try again.'); }
+  finally{ $('#saveDoctor').disabled = false; }
+};
+
+load();
+</script>
+</body>
+</html>

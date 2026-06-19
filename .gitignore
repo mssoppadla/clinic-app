@@ -5,3 +5,6 @@ __pycache__/
 .venv/
 node_modules/
 .pytest_cache/
+# local-only validation artifacts (never deployed)
+deploy/Caddyfile.local
+.localtest/

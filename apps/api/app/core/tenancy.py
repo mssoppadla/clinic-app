@@ -27,6 +27,11 @@ def resolve_tenant(request: Request, x_clinic_slug: str | None = None) -> dict:
             raise AppError("tenant_not_found", f"No clinic for slug '{slug}'", status=404)
         if tenant.status not in ("active", "trial"):
             raise AppError("tenant_inactive", "Clinic is not active", status=403)
+        # Onboarding [C34]: a self-registered clinic exists but is not live to patients
+        # until a provider approves go-live. Its hosted page/booking are gated here.
+        if not tenant.go_live:
+            raise AppError("clinic_not_live",
+                           "This clinic is being set up and will be live soon.", status=403)
         return {
             "id": tenant.id,
             "slug": tenant.slug,

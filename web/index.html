@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0e7c66"/>
 <meta http-equiv="Cache-Control" content="no-store"/>
 <title>Book appointment</title>
-<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=6"/>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=7"/>
 </head>
 <body>
 <div class="top">
@@ -95,6 +95,28 @@ const hide = id => $(id).classList.add('hidden');
 const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); };
 const clearError = () => $('#error').classList.add('hidden');
 
+// Embedded on a clinic's own site (via /appointments/assets/embed.js -> iframe?embed=1):
+// hide our own header chrome so it blends in, and report content height to the parent
+// page so the iframe auto-resizes (no scrollbars, no fixed height to maintain).
+// Appearance overrides the embed snippet may pass (clinic edits their own snippet):
+// color, accent, headline, tagline, book (button text), header (1/0). These layer on top
+// of the clinic's saved branding so the embedded widget matches their site exactly.
+const BRAND_Q = {};
+['color','accent','headline','tagline','book'].forEach(k=>{ const v=Q.get(k); if(v) BRAND_Q[k]=v; });
+if (Q.get('header')!==null) BRAND_Q.show_header = Q.get('header')==='1';
+
+const EMBED = Q.get('embed') === '1' || window.self !== window.top;
+if (EMBED) {
+  document.documentElement.classList.add('embed');
+  const postHeight = () => { try {
+    parent.postMessage({type:'tovai:resize', height: Math.ceil(document.body.getBoundingClientRect().height)}, '*');
+  } catch(_){} };
+  window.addEventListener('load', postHeight);
+  window.addEventListener('resize', postHeight);
+  if (window.ResizeObserver) new ResizeObserver(postHeight).observe(document.body);
+  setTimeout(postHeight, 300);
+}
+
 function applyLabels(){
   document.querySelectorAll('[data-k]').forEach(el=>{
     const key = el.getAttribute('data-k');
@@ -116,20 +138,30 @@ function patientBlock(){
   return w;
 }
 
+function applyBranding(clinic){
+  const b = Object.assign({}, clinic.branding || {}, BRAND_Q);  // saved config + snippet overrides
+  if(b.color)  document.documentElement.style.setProperty('--brand', b.color);
+  if(b.accent) document.documentElement.style.setProperty('--accent', b.accent);
+  const name = clinic.name || 'Clinic';
+  $('#topName').textContent = name;
+  if(b.logo){ $('#logo').innerHTML = `<img src="${b.logo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"/>`; }
+  else { $('#logo').textContent = name.trim()[0] || 'C'; }
+  $('#clinicName').textContent = '● ' + (b.headline || name);
+  const specs = [...new Set((clinic.doctors||[]).map(d=>d.specialty).filter(Boolean))].join(', ');
+  $('#subtitle').textContent = b.tagline || [b.city, specs].filter(Boolean).join(' · ') || '—';
+  if(b.book_label){ $('#bookBtn').textContent = b.book_label; $('#confirmBtn').textContent = b.book_label;
+    $('#bookBtn').removeAttribute('data-k'); $('#confirmBtn').removeAttribute('data-k'); }
+  // In embed mode the header is hidden by default; show a clinic-branded one if opted in.
+  if(EMBED && b.show_header) document.documentElement.classList.add('show-header');
+}
+
 async function load(){
   try{
     const r = await fetch(`${API}/clinics/${encodeURIComponent(SLUG)}`);
     if(!r.ok) throw new Error('Could not load clinic ('+r.status+')');
     clinic = await r.json();
     LABELS = clinic.labels || {en:{}}; LANGS = clinic.languages || ['en'];
-    const b = clinic.branding || {};
-    if(b.color) document.documentElement.style.setProperty('--brand', b.color);
-    if(b.accent) document.documentElement.style.setProperty('--accent', b.accent);
-    $('#topName').textContent = clinic.name;
-    $('#logo').textContent = (clinic.name||'C').trim()[0];
-    $('#clinicName').innerHTML = '● ' + clinic.name;
-    const specs = [...new Set((clinic.doctors||[]).map(d=>d.specialty).filter(Boolean))].join(', ');
-    $('#subtitle').textContent = [b.city, specs].filter(Boolean).join(' · ') || '—';
+    applyBranding(clinic);
     $('#queueCount').textContent = clinic.queue_count;
     $('#avgWait').textContent = '~'+clinic.avg_wait_minutes + 'm';
     // doctor rows on the "choose" screen (mock step 2 — join today's running queue)
