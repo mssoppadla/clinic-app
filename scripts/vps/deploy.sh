@@ -26,14 +26,14 @@ $COMPOSE build
 echo "[4/7] start (api container runs bootstrap_db + idempotent seed on boot)"
 $COMPOSE up -d
 
-# `up -d` does NOT recreate caddy when only the bind-mounted Caddyfile changed (compose
-# keys on image/ports/volumes, not file contents), so routing edits would silently never
-# take effect. Static files (web/) are read from disk per request and need no reload; the
-# Caddyfile is loaded into memory at start, so reload it explicitly. caddy reload is
-# zero-downtime; fall back to a restart if the admin API isn't reachable.
-echo "[4b/7] reload caddy config (apply Caddyfile changes)"
-$COMPOSE exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null \
-  || $COMPOSE restart caddy
+# The Caddyfile is bind-mounted as a SINGLE FILE (./Caddyfile:/etc/caddy/Caddyfile).
+# `git reset --hard` above replaces that file with a new inode, but Docker pins the file
+# bind-mount to the original inode at container-create time -- so the running caddy (and
+# `caddy reload`/`restart`, which re-read that same in-container path) keep serving the OLD
+# config. Only RECREATING the container re-resolves the mount to the new file. `up -d` alone
+# won't recreate caddy (its image/ports/volumes are unchanged), so force-recreate it.
+echo "[4b/7] recreate caddy so the updated Caddyfile (new inode) is actually loaded"
+$COMPOSE up -d --force-recreate caddy
 
 echo "[5/7] health gate"
 ok=0; for i in $(seq 1 40); do if curl -fsS http://localhost:8080/api/v1/healthz >/dev/null 2>&1; then ok=1; break; fi; sleep 3; done
