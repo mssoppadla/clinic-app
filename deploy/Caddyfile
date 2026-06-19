@@ -1,7 +1,8 @@
 # Same-origin: static patient app at / , API reverse-proxied at /api/* (no CORS needed in prod).
 # Auto-TLS on the real domain; :80 locally.
 :80 {
-	handle_path /api/* {
+	# do NOT strip the prefix: the API serves routes under /api/v1 via root_path
+	handle /api/* {
 		reverse_proxy api:8000
 	}
 	handle {

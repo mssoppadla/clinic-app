@@ -84,7 +84,7 @@
 
 <script>
 const Q = new URLSearchParams(location.search);
-const API = (Q.get('api') || window.API_BASE || 'http://localhost:8077').replace(/\/$/,'');
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
 const SLUG = Q.get('clinic') || window.CLINIC_SLUG || '__canary__';
 let LABELS = {en:{}}, LANGS = ['en'], DOCTOR = null, clinic = null;
 

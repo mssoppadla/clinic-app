@@ -63,7 +63,7 @@
 
 <script>
 const Q = new URLSearchParams(location.search);
-const API = (Q.get('api') || window.API_BASE || 'http://localhost:8077').replace(/\/$/,'');
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
 const $ = s => document.querySelector(s);
 const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); };
 const clearError = () => $('#error').classList.add('hidden');
