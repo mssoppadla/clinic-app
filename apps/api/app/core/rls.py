@@ -61,6 +61,13 @@ def ensure_app_role(admin_conn, app_url: str) -> str | None:
     # Guard: only manage a clearly app-specific, safe-named role (never postgres/superuser).
     if not role or not _SAFE_ROLE.match(role) or role in ("postgres",):
         return None
+    # Single-role setups (dev/CI without a distinct admin URL): the app URL's role IS the
+    # bootstrap role. There's no separate app role to create, and we must never try to demote
+    # ourselves (it errors: "must have SUPERUSER"). Skip — RLS still gets applied (advisory
+    # under a superuser; truly enforcing only with the dedicated non-superuser role in prod).
+    current_user = admin_conn.execute(text("SELECT current_user")).scalar()
+    if role == current_user:
+        return None
     rid = '"' + role.replace('"', '""') + '"'
     pw_lit = "'" + pw.replace("'", "''") + "'"
     exists = admin_conn.execute(text("SELECT 1 FROM pg_roles WHERE rolname=:r"), {"r": role}).scalar()
