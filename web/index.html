@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0e7c66"/>
 <meta http-equiv="Cache-Control" content="no-store"/>
 <title>Book appointment</title>
-<link rel="stylesheet" href="styles/app.css?v=3"/>
+<link rel="stylesheet" href="/styles/app.css?v=4"/>
 </head>
 <body>
 <div class="top">
@@ -85,7 +85,8 @@
 <script>
 const Q = new URLSearchParams(location.search);
 const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
-const SLUG = Q.get('clinic') || window.CLINIC_SLUG || '__canary__';
+const _pm = location.pathname.match(/\/appointments\/([^/?#]+)/);
+const SLUG = Q.get('clinic') || (_pm && decodeURIComponent(_pm[1])) || window.CLINIC_SLUG || '__canary__';
 let LABELS = {en:{}}, LANGS = ['en'], DOCTOR = null, clinic = null;
 
 const $ = s => document.querySelector(s);

@@ -1,13 +1,24 @@
-# Same-origin: static patient app at / , API reverse-proxied at /api/* (no CORS needed in prod).
-# Auto-TLS on the real domain; :80 locally.
+# Routing (served behind the front proxy that terminates TLS for tovaitech.in):
+#   /            -> Tovaitech company landing (landing.html)
+#   /appointments/<clinic-slug> -> patient booking app (index.html; slug read from the path)
+#   /admin*      -> clinic admin (admin.html)
+#   /api/*       -> FastAPI (unstripped; app serves routes under /api/v1 via root_path)
 :80 {
-	# do NOT strip the prefix: the API serves routes under /api/v1 via root_path
 	handle /api/* {
 		reverse_proxy api:8000
 	}
-	handle {
+	handle /admin* {
 		root * /srv/web
-		try_files {path} /index.html
+		rewrite * /admin.html
 		file_server
+	}
+	handle /appointments/* {
+		root * /srv/web
+		rewrite * /index.html
+		file_server
+	}
+	# "/" belongs to the company site (separate stack). Any stray hit here -> company landing.
+	handle {
+		redir https://tovaitech.in/ 302
 	}
 }
