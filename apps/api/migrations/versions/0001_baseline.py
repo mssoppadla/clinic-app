@@ -21,15 +21,9 @@ TENANT_TABLES = [
 def upgrade():
     bind = op.get_bind()
     Base.metadata.create_all(bind)  # create all ORM tables
-    if bind.dialect.name == "postgresql":
-        # app connects with a non-superuser role and sets app.tenant_id per request
-        for t in TENANT_TABLES:
-            op.execute(f"ALTER TABLE {t} ENABLE ROW LEVEL SECURITY")
-            op.execute(f"ALTER TABLE {t} FORCE ROW LEVEL SECURITY")
-            op.execute(
-                f"CREATE POLICY tenant_isolation ON {t} USING "
-                f"(tenant_id = current_setting('app.tenant_id', true))"
-            )
+    # RLS deferred to a later phase (needs app to SET app.tenant_id per request).
+    # Tenant isolation is enforced at the application layer for now. See bootstrap_db.py.
+    _ = TENANT_TABLES  # retained for the future RLS migration
 
 def downgrade():
     bind = op.get_bind()

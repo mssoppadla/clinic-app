@@ -24,9 +24,11 @@ def main() -> None:
     if "alembic_version" not in insp.get_table_names():
         # Postgres needs RLS too; create_all builds tables, then apply RLS the baseline would.
         Base.metadata.create_all(engine)
-        _apply_rls_if_postgres()
+        # RLS deferred: FORCE RLS requires the app to SET app.tenant_id per request, which is not
+        # wired yet. Tenant isolation is enforced at the app layer (TenantScope, tested). Enabling
+        # RLS now would block the seed and all queries. RLS is a Phase-1 hardening item.
         command.stamp(cfg, "head")
-        print("bootstrap: fresh DB -> create_all + RLS + stamp head")
+        print("bootstrap: fresh DB -> create_all + stamp head")
     else:
         command.upgrade(cfg, "head")
         print("bootstrap: existing DB -> alembic upgrade head")
