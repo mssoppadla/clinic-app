@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Appointment slots · admin</title>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=8"/>
+<script src="/appointments/assets/admin-auth.js"></script>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo">T</div>
+  <div><h1>Appointment slots</h1><p>Clinic staff · create bookable slots</p></div>
+</div>
+
+<div class="adminwrap">
+  <div id="error" class="err hidden"></div>
+
+  <section class="card">
+    <div class="cardhead"><h3>Generate slots</h3></div>
+    <p class="hint">Pick a doctor and a day, set the working window and slot length. Slots are
+      generated as bookable times; patients pick one on the booking page.</p>
+    <div class="grid2">
+      <div class="field"><label>Doctor</label><select class="select" id="doctor"></select></div>
+      <div class="field"><label>Date</label><input class="input" id="date" type="date"/></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Start time</label><input class="input" id="start" type="time" value="10:00"/></div>
+      <div class="field"><label>End time</label><input class="input" id="end" type="time" value="13:00"/></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Slot length (minutes)</label><input class="input" id="slot_minutes" inputmode="numeric" value="30"/></div>
+      <div class="field"><label>Capacity per slot</label><input class="input" id="capacity" inputmode="numeric" value="1"/></div>
+    </div>
+    <button class="btn" id="genBtn" type="button">Generate slots</button>
+    <div id="genResult"></div>
+  </section>
+
+  <section class="card">
+    <div class="cardhead"><h3>Slots <span id="count" class="pill n">…</span></h3></div>
+    <div id="list"></div>
+  </section>
+</div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
+const $ = s => document.querySelector(s);
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); window.scrollTo(0,0); };
+const clearError = () => $('#error').classList.add('hidden');
+
+async function loadDoctors(){
+  try{
+    const r = await authFetch(`${API}/slots/doctors`);
+    if(!r.ok) return;
+    const docs = (await r.json()).doctors || [];
+    $('#doctor').innerHTML = docs.length
+      ? docs.map(d=>`<option value="${d.id}">${d.name}${d.specialty?' · '+d.specialty:''}</option>`).join('')
+      : '<option value="">No doctors yet — add one in onboarding</option>';
+  }catch(e){}
+}
+
+async function loadSlots(){
+  const doctor = $('#doctor').value, date = $('#date').value;
+  if(!doctor || !date){ $('#list').innerHTML=''; $('#count').textContent='0'; return; }
+  try{
+    const r = await authFetch(`${API}/slots?doctor=${encodeURIComponent(doctor)}&date=${date}`);
+    if(!r.ok) return;
+    const slots = (await r.json()).slots || [];
+    $('#count').textContent = slots.length;
+    $('#list').innerHTML = slots.length ? slots.map(s=>{
+      const t = new Date(s.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const full = s.available<=0;
+      return `<div class="kv"><span><b>${t}</b> <span class="muted">cap ${s.capacity} · booked ${s.booked}</span></span>
+        <span class="pill ${full?'r':'g'}">${full?'full':s.available+' free'}</span></div>`;
+    }).join('') : '<p class="muted" style="padding:8px 0">No slots for this day yet.</p>';
+  }catch(e){}
+}
+
+$('#genBtn').onclick = async ()=>{
+  clearError(); $('#genResult').innerHTML='';
+  const body = { doctor_id: $('#doctor').value, date: $('#date').value,
+    start: $('#start').value, end: $('#end').value,
+    slot_minutes: parseInt($('#slot_minutes').value,10)||15, capacity: parseInt($('#capacity').value,10)||1 };
+  if(!body.doctor_id || !body.date){ showError('Pick a doctor and a date.'); return; }
+  $('#genBtn').disabled = true;
+  try{
+    const r = await authFetch(`${API}/slots/generate`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error&&d.error.message)||'Could not generate slots'); return; }
+    $('#genResult').innerHTML = `<div class="result ok" style="margin-top:10px">Created ${d.created} slot(s)${d.skipped?`, skipped ${d.skipped} existing`:''} for ${d.date}.</div>`;
+    loadSlots();
+  }catch(e){ showError('Network error.'); }
+  finally{ $('#genBtn').disabled = false; }
+};
+$('#doctor').addEventListener('change', loadSlots);
+$('#date').addEventListener('change', loadSlots);
+
+requireLogin();
+const today = new Date(); $('#date').value = today.toISOString().slice(0,10);
+loadDoctors();
+</script>
+</body>
+</html>

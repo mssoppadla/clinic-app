@@ -24,7 +24,7 @@ from sqlalchemy.engine import make_url
 
 # Tables that carry tenant_id and must be RLS-isolated (mirrors 0001 baseline TENANT_TABLES).
 TENANT_TABLES = [
-    "doctors", "sessions", "patients", "consents", "booking_events", "bookings",
+    "doctors", "sessions", "slots", "patients", "consents", "booking_events", "bookings",
     "booking_patients", "tokens", "queue_entries", "idempotency_keys", "usage_events",
 ]
 

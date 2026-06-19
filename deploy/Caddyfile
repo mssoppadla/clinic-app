@@ -62,6 +62,13 @@
 		rewrite * /users.html
 		file_server
 	}
+	# Appointment slot management (clinic staff).
+	@slotspage path /appointments/slots /appointments/slots/
+	handle @slotspage {
+		root * /srv/web
+		rewrite * /slots.html
+		file_server
+	}
 	# Everything else under /appointments/<slug> is a clinic's patient booking page.
 	handle /appointments/* {
 		root * /srv/web

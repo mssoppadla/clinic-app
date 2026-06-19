@@ -142,6 +142,23 @@ class BookingEvent(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class Slot(Base):
+    """Bookable timed appointment slot (Phase 1). Generated from a window; per-slot capacity.
+    `booked` is incremented under a row lock so concurrent bookings can't oversell [F11c, F21]."""
+    __tablename__ = "slots"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    doctor_id: Mapped[str] = mapped_column(String(36), index=True)
+    session_id: Mapped[str] = mapped_column(String(36), index=True)
+    date: Mapped[str] = mapped_column(String(10))           # YYYY-MM-DD (clinic-local)
+    start_ts: Mapped[datetime] = mapped_column(DateTime)
+    end_ts: Mapped[datetime] = mapped_column(DateTime)
+    capacity: Mapped[int] = mapped_column(Integer, default=1)
+    booked: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open|closed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
