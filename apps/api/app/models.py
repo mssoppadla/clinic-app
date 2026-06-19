@@ -48,7 +48,10 @@ class User(Base):
     role live in user_roles (superadmin has a role row with tenant_id=NULL). [AC1-AC18]"""
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    email: Mapped[str] = mapped_column(String(200), unique=True)
+    # Login identifier — email OR username (at least one). Email optional: many small clinics
+    # have no official email and sign in by username; password reset uses WhatsApp OTP (phone).
+    email: Mapped[str | None] = mapped_column(String(200), unique=True, nullable=True)
+    username: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
     password_hash: Mapped[str] = mapped_column(String(200), default="")
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)  # WhatsApp OTP target
     status: Mapped[str] = mapped_column(String(20), default="active")     # active|revoked
@@ -64,6 +67,20 @@ class UserRole(Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"))
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # NULL = superadmin
     role: Mapped[str] = mapped_column(String(30))  # superadmin|clinic_admin|doctor|front_desk|triage
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class OtpChallenge(Base):
+    """Short-lived OTP for password reset (delivered via WhatsApp). [AC15, AC17]"""
+    __tablename__ = "otp_challenges"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    destination: Mapped[str] = mapped_column(String(120), default="")   # phone the OTP was sent to
+    purpose: Mapped[str] = mapped_column(String(30), default="password_reset")
+    code_hash: Mapped[str] = mapped_column(String(200))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 

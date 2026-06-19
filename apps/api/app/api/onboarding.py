@@ -24,7 +24,8 @@ from ..core.config import get_settings
 from ..core.db import system_session
 from ..core.errors import AppError
 from ..core import slug as slugmod
-from ..models import Doctor, Session as ClinicSession, Tenant
+from ..core.security import generate_temp_password, hash_password
+from ..models import Doctor, Session as ClinicSession, Tenant, User, UserRole
 from .deps import require_role
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
@@ -183,6 +184,18 @@ def onboarding_status(slug: str):
                 **_readiness(db, tenant)}
 
 
+@router.get("/clinics")
+def list_clinics(_: dict = Depends(require_role("superadmin")), live: bool = True):
+    """Provider view: clinics (live by default) — powers the 'assign to clinic' picker."""
+    with system_session() as db:
+        q = db.query(Tenant).filter(Tenant.is_synthetic.is_(False))
+        if live:
+            q = q.filter(Tenant.go_live.is_(True))
+        rows = q.order_by(Tenant.name).all()
+        return {"clinics": [{"tenant_id": t.id, "slug": t.slug, "name": t.name,
+                             "status": t.status, "go_live": t.go_live} for t in rows]}
+
+
 @router.get("/pending")
 def pending_clinics(_: dict = Depends(require_role("superadmin"))):
     """Provider view: clinics awaiting go-live approval (superadmin only)."""
@@ -256,4 +269,23 @@ def approve_go_live(body: OverrideIn, _: dict = Depends(require_role("superadmin
         tenant.go_live = True
         tenant.status = "active"
         log.info("onboarding.override slug=%s reason=%s -> go_live", body.slug, body.reason or "")
-        return {"slug": tenant.slug, "status": tenant.status, "go_live": tenant.go_live}
+
+        # Auto-create the clinic's first clinic_admin from the registration contact email
+        # (temp password, force-reset). Surfaced once so the provider can share it.
+        created_admin = None
+        email = (tenant.contact_email or "").strip().lower()
+        has_admin = db.query(UserRole).filter(UserRole.tenant_id == tenant.id,
+                                              UserRole.role == "clinic_admin").first() is not None
+        if email and "@" in email and not has_admin:
+            u = db.query(User).filter(User.email == email).first()
+            if u is None:
+                temp = generate_temp_password()
+                u = User(email=email, phone=tenant.contact_phone, password_hash=hash_password(temp),
+                         must_reset_password=True, status="active")
+                db.add(u)
+                db.flush()
+                created_admin = {"email": email, "temp_password": temp}
+            db.add(UserRole(user_id=u.id, tenant_id=tenant.id, role="clinic_admin"))
+
+        return {"slug": tenant.slug, "status": tenant.status, "go_live": tenant.go_live,
+                "clinic_admin": created_admin}
