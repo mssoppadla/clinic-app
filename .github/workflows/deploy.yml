@@ -116,10 +116,40 @@ jobs:
         # deploy.sh: pre-deploy data-guard snapshot, git sync, build, alembic/bootstrap,
         # idempotent seed, health-gated container swap, canary smoke, data-preservation
         # verify, rollback on failure. Non-zero exit fails this step (surfaced in GitHub UI).
+        #
+        # Retry-with-backoff for the SSH *connection* only. GitHub-hosted runners use
+        # rotating egress IPs, and the VPS intermittently drops the TCP handshake to port 22
+        # (fail2ban / rate-limit / transient network), causing "connect to host: Connection
+        # timed out". ssh exits 255 on its own connect/transport failures; any other non-zero
+        # is deploy.sh's real exit code, passed through. So we retry ONLY on 255 (safe: the
+        # script never ran) and fail fast on a genuine deploy failure (no wasteful re-runs).
         run: |
-          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes \
-              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-              'set -e; cd /opt/clinic-app && bash scripts/vps/deploy.sh'
+          attempts=5
+          for i in $(seq 1 "$attempts"); do
+            echo "::group::deploy attempt $i/$attempts"
+            set +e
+            ssh -o StrictHostKeyChecking=yes -o BatchMode=yes \
+                -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+                "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+                'set -e; cd /opt/clinic-app && bash scripts/vps/deploy.sh'
+            rc=$?
+            set -e
+            echo "::endgroup::"
+            if [ "$rc" -eq 0 ]; then
+              echo "deploy succeeded on attempt $i"
+              exit 0
+            fi
+            if [ "$rc" -ne 255 ]; then
+              echo "::error::deploy.sh failed on the VPS (exit $rc) — not a connection error, not retrying"
+              exit "$rc"
+            fi
+            echo "ssh connection failed (exit 255) on attempt $i"
+            if [ "$i" -lt "$attempts" ]; then
+              sleep $((i * 15))
+            fi
+          done
+          echo "::error::could not reach the VPS over SSH after $attempts attempts"
+          exit 1
       - name: Post-deploy public smoke
         run: |
           curl -fsS https://tovaitech.in/api/v1/healthz | grep -qi 'ok\|healthy'
