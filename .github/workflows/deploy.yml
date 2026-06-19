@@ -119,7 +119,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=yes -o BatchMode=yes \
               "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-              'set -e; cd /opt/clinic-app && ./scripts/vps/deploy.sh'
+              'set -e; cd /opt/clinic-app && bash scripts/vps/deploy.sh'
       - name: Post-deploy public smoke
         run: |
           curl -fsS https://tovaitech.in/api/v1/healthz | grep -qi 'ok\|healthy'
