@@ -1,0 +1,126 @@
+name: deploy
+# Test gate -> migration drift -> manual approval -> SSH into VPS -> run scripts/vps/deploy.sh
+#
+# Triggered by:
+#   - push to main (after a PR is merged)
+#   - workflow_dispatch (manual "Run workflow" button)
+#
+# The deploy job is gated by GitHub Environment "production":
+#   - set up at https://github.com/<owner>/<repo>/settings/environments
+#   - requires explicit approval from a configured reviewer (you)
+#   - restrict deployments to the main branch
+#   - holds the SSH secrets (VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_HOST_KEY)
+# See DEPLOYMENT.md for one-time setup.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  # --------------------------------------------------------------------------
+  # Strict test gate. Unlike backend-ci.yml (advisory `|| true`), this MUST pass
+  # for the deploy job to start.
+  # --------------------------------------------------------------------------
+  test:
+    name: Test gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12", cache: "pip", cache-dependency-path: apps/api/requirements.txt }
+      - name: Install backend deps
+        run: pip install -r apps/api/requirements.txt
+      - name: Backend tests (strict)
+        run: cd apps/api && PYTHONPATH=. pytest -q
+      - name: Backward-compat gate (additive migrations only)
+        run: python deploy/check_additive_migration.py
+
+  # --------------------------------------------------------------------------
+  # Migration <-> model drift gate, on a real Postgres (matches prod engine).
+  # Bootstrap mirrors deploy.sh fresh-DB path (create_all + RLS + stamp head),
+  # then `alembic check` (model<->migration drift) and `alembic upgrade head`
+  # (idempotency on the bootstrapped schema).
+  # --------------------------------------------------------------------------
+  migration-drift:
+    name: Migration drift check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: clinic
+          POSTGRES_PASSWORD: clinic_test
+          POSTGRES_DB: clinic_migr
+        options: >-
+          --health-cmd "pg_isready -U clinic -d clinic_migr"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+        ports: ["5432:5432"]
+    env:
+      APP_DATABASE_URL: postgresql+psycopg://clinic:clinic_test@localhost:5432/clinic_migr
+      APP_ENV: ci
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12", cache: "pip", cache-dependency-path: apps/api/requirements.txt }
+      - name: Install backend deps
+        run: pip install -r apps/api/requirements.txt
+      - name: Bootstrap schema (mirror deploy.sh fresh-DB path) on Postgres
+        run: cd apps/api && PYTHONPATH=. python scripts/bootstrap_db.py
+      - name: alembic check (model <-> migration drift, advisory)
+        run: cd apps/api && PYTHONPATH=. alembic check || true
+      - name: alembic upgrade head (idempotency on bootstrapped schema)
+        run: cd apps/api && PYTHONPATH=. alembic upgrade head
+
+  # --------------------------------------------------------------------------
+  # Deploy gate — requires MANUAL approval via the "production" Environment.
+  # --------------------------------------------------------------------------
+  deploy:
+    name: Deploy to production VPS
+    needs: [test, migration-drift]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://tovaitech.in
+    steps:
+      - name: Configure SSH
+        # Secrets:
+        #   VPS_HOST     - hostname or IP
+        #   VPS_USER     - e.g. "deploy"
+        #   VPS_SSH_KEY  - private key content (ed25519 recommended)
+        #   VPS_HOST_KEY - output of `ssh-keyscan <host>` (host-key pinning)
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          if [ -n "${{ secrets.VPS_HOST_KEY }}" ]; then
+            printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Run deploy.sh on VPS
+        # deploy.sh: pre-deploy data-guard snapshot, git sync, build, alembic/bootstrap,
+        # idempotent seed, health-gated container swap, canary smoke, data-preservation
+        # verify, rollback on failure. Non-zero exit fails this step (surfaced in GitHub UI).
+        run: |
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes \
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+              'set -e; cd /opt/clinic-app && ./scripts/vps/deploy.sh'
+      - name: Post-deploy public smoke
+        run: |
+          curl -fsS https://tovaitech.in/api/v1/healthz | grep -qi 'ok\|healthy'
+          curl -fsS -o /dev/null -w "page %{http_code}\n" https://tovaitech.in

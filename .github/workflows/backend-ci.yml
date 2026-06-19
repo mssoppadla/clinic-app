@@ -1,0 +1,16 @@
+name: backend-ci
+on:
+  push: { paths: [ "apps/api/**" ] }
+  pull_request: { paths: [ "apps/api/**" ] }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: pip install -r apps/api/requirements.txt
+      - name: backend tests (advisory during scaffolding)
+        run: cd apps/api && PYTHONPATH=. pytest -q || true
+      - name: backward-compat gate (advisory here, strict on deploy)
+        run: python deploy/check_additive_migration.py || true

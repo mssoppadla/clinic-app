@@ -1,0 +1,16 @@
+name: frontend-ci
+on:
+  push: { paths: [ "web/**" ] }
+  pull_request: { paths: [ "web/**" ] }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: static sanity (pages exist + use shared stylesheet)
+        run: |
+          test -f web/index.html && test -f web/admin.html && test -f web/styles/app.css
+          grep -q 'styles/app.css' web/index.html
+          grep -q 'styles/app.css' web/admin.html
+      - name: optional HTML lint (advisory)
+        run: npx --yes htmlhint "web/**/*.html" || true

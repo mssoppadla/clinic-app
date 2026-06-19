@@ -1,0 +1,16 @@
+# Code owners — auto-requested as reviewers on PRs touching these paths.
+# Solo note: GitHub does NOT let you approve your OWN pull request. So if you enable
+# "Require review from Code Owners" in branch protection, you (as sole owner) could not
+# merge your own PRs. For a solo founder, keep required approvals at 0 and rely on:
+#   (1) "Require a pull request before merging" (you click Merge), and
+#   (2) the production Environment "Required reviewers" gate (you CAN approve your own deploy).
+# Add a second owner here later (e.g. a co-founder/contractor) to turn on real review gating.
+
+*                       @mssoppadla
+/apps/api/              @mssoppadla
+/web/                   @mssoppadla
+/.github/               @mssoppadla
+/deploy/                @mssoppadla
+/scripts/               @mssoppadla
+BUILD_GUIDELINES.md     @mssoppadla
+DEPLOYMENT.md           @mssoppadla

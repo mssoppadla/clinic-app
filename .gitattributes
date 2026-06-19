@@ -1,0 +1,9 @@
+# Normalize line endings. Repo stores LF; Linux deploy scripts MUST stay LF.
+* text=auto eol=lf
+*.sh   text eol=lf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+*.db  binary

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Book appointment</title>
+<link rel="stylesheet" href="styles/app.css?v=3"/>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo" id="logo">C</div>
+  <div><h1 id="topName">Clinic</h1><p>Patient booking</p></div>
+</div>
+
+<div class="wrap">
+  <div id="error" class="err hidden"></div>
+
+  <!-- SCREEN 1: landing / discovery (mock step 1) -->
+  <section id="discovery" class="card">
+    <div class="ident"><b id="clinicName">● Clinic</b><span class="cfg">⚙ brand</span></div>
+    <div class="subtitle" id="subtitle">—</div>
+    <div class="stats">
+      <div class="stat"><b id="queueCount">–</b><span data-k="in queue now">in queue now</span></div>
+      <div class="stat"><b id="avgWait">–</b><span data-k="avg wait">avg wait</span></div>
+    </div>
+    <button class="btn" id="bookBtn" type="button" data-k="Book appointment" style="margin-top:12px">Book appointment</button>
+    <div class="row2">
+      <button class="btn ghost sm" id="waBtn" type="button">💬 WhatsApp</button>
+      <button class="btn ghost sm" id="rgBtn" type="button" style="color:var(--accent);border-color:var(--accent)">Reserve w/ Google</button>
+    </div>
+    <p class="foot">English always · + <span lang="ml">മലയാളം</span> if clinic enables <span class="cfg">⚙</span></p>
+  </section>
+
+  <!-- SCREEN 2: choose how to book (mock step 2) -->
+  <section id="choose" class="card hidden">
+    <h3 id="chooseTitle">Choose a doctor</h3>
+    <h4 class="muted" style="margin:2px 0 10px">Join today's running queue</h4>
+    <div id="doctors"></div>
+    <p class="note">Pick a free slot — <span class="cfg">⚙ coming soon</span></p>
+    <div class="chips">
+      <span class="chip off">10:00</span><span class="chip off">10:30</span>
+      <span class="chip off">11:00</span><span class="chip off">11:30</span>
+    </div>
+    <button class="btn ghost" id="backToLanding" type="button" style="margin-top:12px">Back</button>
+  </section>
+
+  <!-- SCREEN 3: details (mock step 3) -->
+  <section id="details" class="card hidden">
+    <h3 id="detailsDoctor">Your details</h3>
+    <h4 class="muted" style="margin:2px 0 10px">Join today's queue</h4>
+    <div id="patients"></div>
+    <button class="addbtn" id="addPatient" type="button">+ Add patient (up to 3)</button>
+    <div class="field" style="margin-top:12px">
+      <label data-k="Mobile number">Mobile number</label>
+      <input class="input" id="phone" inputmode="tel" autocomplete="tel" placeholder="+91 ..." />
+    </div>
+    <div class="field">
+      <label data-k="Reason for visit">Reason for visit <span class="muted">(optional)</span></label>
+      <input class="input" id="reason" placeholder="e.g. fever, follow-up" />
+    </div>
+    <label class="consent">
+      <input type="checkbox" id="consent" />
+      <span>I agree to store my details &amp; receive WhatsApp updates (DPDP)</span>
+    </label>
+    <button class="btn" id="confirmBtn" type="button" data-k="Book appointment">Book appointment</button>
+    <button class="btn ghost" id="backToChoose" type="button" style="margin-top:8px">Back</button>
+  </section>
+
+  <!-- SCREEN 4: token (mock step 5) -->
+  <section id="confirmed" class="card hidden">
+    <h2><span class="pill g">confirmed</span></h2>
+    <div class="token">
+      <div class="muted" data-k="Your token">Your token</div>
+      <div class="n" id="tokenNum">A-1</div>
+      <div class="code" id="tokenCode"></div>
+      <div class="muted" id="tokenEta" style="margin-top:8px"></div>
+    </div>
+    <p class="muted" style="text-align:center;margin-top:12px">A WhatsApp confirmation has been sent to your number.</p>
+    <button class="btn ghost" id="againBtn" type="button" style="margin-top:8px">Book another</button>
+  </section>
+</div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || 'http://localhost:8077').replace(/\/$/,'');
+const SLUG = Q.get('clinic') || window.CLINIC_SLUG || '__canary__';
+let LABELS = {en:{}}, LANGS = ['en'], DOCTOR = null, clinic = null;
+
+const $ = s => document.querySelector(s);
+const show = id => $(id).classList.remove('hidden');
+const hide = id => $(id).classList.add('hidden');
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); };
+const clearError = () => $('#error').classList.add('hidden');
+
+function applyLabels(){
+  document.querySelectorAll('[data-k]').forEach(el=>{
+    const key = el.getAttribute('data-k');
+    const en = (LABELS.en && LABELS.en[key]) || key;
+    let html = en;
+    LANGS.filter(l=>l!=='en').forEach(l=>{
+      const t = LABELS[l] && LABELS[l][key];
+      if(t && t!==en) html += `<span class="ml">${t}</span>`;
+    });
+    el.innerHTML = html;
+  });
+}
+
+function patientBlock(){
+  const w = document.createElement('div'); w.className='patientblock';
+  w.innerHTML = `<div class="field" style="margin:0">
+    <label data-k="Patient name">Patient name</label>
+    <input class="input patient-name" autocomplete="name" placeholder="Full name"/></div>`;
+  return w;
+}
+
+async function load(){
+  try{
+    const r = await fetch(`${API}/clinics/${encodeURIComponent(SLUG)}`);
+    if(!r.ok) throw new Error('Could not load clinic ('+r.status+')');
+    clinic = await r.json();
+    LABELS = clinic.labels || {en:{}}; LANGS = clinic.languages || ['en'];
+    const b = clinic.branding || {};
+    if(b.color) document.documentElement.style.setProperty('--brand', b.color);
+    if(b.accent) document.documentElement.style.setProperty('--accent', b.accent);
+    $('#topName').textContent = clinic.name;
+    $('#logo').textContent = (clinic.name||'C').trim()[0];
+    $('#clinicName').innerHTML = '● ' + clinic.name;
+    const specs = [...new Set((clinic.doctors||[]).map(d=>d.specialty).filter(Boolean))].join(', ');
+    $('#subtitle').textContent = [b.city, specs].filter(Boolean).join(' · ') || '—';
+    $('#queueCount').textContent = clinic.queue_count;
+    $('#avgWait').textContent = '~'+clinic.avg_wait_minutes + 'm';
+    // doctor rows on the "choose" screen (mock step 2 — join today's running queue)
+    const dl = $('#doctors'); dl.innerHTML='';
+    const nextTok = clinic.queue_count + 1;
+    const approx = new Date(Date.now()+clinic.avg_wait_minutes*60000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    (clinic.doctors||[]).forEach(d=>{
+      const fee = (d.fee && d.fee.amount_minor) ? '₹'+(d.fee.amount_minor/100) : '';
+      const el = document.createElement('div'); el.className='livecard';
+      el.innerHTML = `<div><b>${d.name}</b> · <span class="muted">${d.specialty||''} ${fee?'· '+fee:''}</span>
+        <div class="meta">Join today's running queue · ~ token #${nextTok} · approx ${approx}</div></div>
+        <span class="pill g">live</span>`;
+      el.onclick = ()=>{ DOCTOR=d; gotoDetails(); };
+      dl.appendChild(el);
+    });
+    applyLabels();
+  }catch(e){ showError(e.message + ' — is the API running at '+API+'?'); }
+}
+
+$('#bookBtn').onclick = ()=>{ clearError(); hide('#discovery'); show('#choose'); };
+$('#backToLanding').onclick = ()=>{ hide('#choose'); show('#discovery'); };
+$('#waBtn').onclick = ()=>{ showError('WhatsApp booking is enabled after clinic setup (Phase 0 preview).'); };
+$('#rgBtn').onclick = ()=>{ showError('Reserve with Google is coming in a later phase.'); };
+
+function gotoDetails(){
+  clearError(); hide('#discovery'); hide('#choose'); hide('#confirmed'); show('#details');
+  $('#detailsDoctor').textContent = DOCTOR ? (DOCTOR.name + (DOCTOR.specialty? ' · '+DOCTOR.specialty : '')) : 'Your details';
+  const p = $('#patients'); p.innerHTML=''; p.appendChild(patientBlock());
+  applyLabels();
+}
+
+$('#addPatient').onclick = ()=>{ const p=$('#patients'); if(p.children.length<3){ p.appendChild(patientBlock()); applyLabels(); } };
+$('#backToChoose').onclick = ()=>{ hide('#details'); show('#choose'); };
+$('#againBtn').onclick = ()=>{ location.reload(); };
+
+$('#confirmBtn').onclick = async ()=>{
+  clearError();
+  const names = [...document.querySelectorAll('.patient-name')].map(i=>i.value.trim()).filter(Boolean);
+  const phone = $('#phone').value.trim();
+  if(!names.length){ showError('Enter at least one patient name'); return; }
+  if(!phone){ showError('Enter your mobile number'); return; }
+  if(!$('#consent').checked){ showError('Please accept consent to continue'); return; }
+  const btn = $('#confirmBtn'); btn.disabled=true;
+  try{
+    const idem = 'web-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+    const r = await fetch(`${API}/bookings`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Clinic-Slug':SLUG,'Idempotency-Key':idem},
+      body: JSON.stringify({ doctor_id: DOCTOR.id, mode:'join_queue',
+        patients: names.map(n=>({name:n})), contact_phone: phone,
+        reason: $('#reason').value.trim() || null, consent:true })
+    });
+    const data = await r.json();
+    if(!r.ok){ showError((data.error && data.error.message) || 'Booking failed'); btn.disabled=false; return; }
+    const t = data.tokens[0];
+    $('#tokenNum').textContent = t.number;
+    $('#tokenCode').textContent = 'Track code: '+t.short_code;
+    if(t.eta) $('#tokenEta').textContent = 'Approx time: '+ new Date(t.eta).toLocaleTimeString();
+    hide('#details'); show('#confirmed'); applyLabels();
+  }catch(e){ showError('Network error: '+e.message); btn.disabled=false; }
+};
+
+load();
+</script>
+</body>
+</html>

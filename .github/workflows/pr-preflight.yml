@@ -1,0 +1,5 @@
+name: pr-preflight-superseded
+# Disabled — replaced by backend-ci.yml, frontend-ci.yml, security-scan.yml (cpmai pattern).
+on: { workflow_dispatch: {} }
+jobs:
+  noop: { runs-on: ubuntu-latest, steps: [ { run: echo "superseded" } ] }

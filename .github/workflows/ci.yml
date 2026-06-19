@@ -1,0 +1,12 @@
+name: ci-superseded
+# This workflow is intentionally disabled. It has been replaced by:
+#   - pr-preflight.yml  (checks on every PR, before manual merge approval)
+#   - deploy.yml        (deployment gates + manual-approved SSH blue-green deploy)
+# Kept only because the file could not be deleted in this environment; it never runs on push/PR.
+on:
+  workflow_dispatch: {}
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "superseded by pr-preflight.yml and deploy.yml"
