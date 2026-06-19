@@ -45,6 +45,33 @@ def test_clinic_admin_creates_staff_with_scoping(client):
     assert _login(client, "doc@c.com", temp)["must_reset_password"] is True
 
 
+def test_recreate_revoked_user_reactivates(client):
+    _mk_user("admin3@c.com", "pw12345678", "clinic_admin", tenant_id="t-react")
+    h = {"Authorization": f"Bearer {_login(client, 'admin3@c.com', 'pw12345678')['access_token']}"}
+
+    created = client.post("/users", headers=h, json={"email": "doc3@c.com", "role": "doctor"}).json()
+    uid = created["id"]
+    assert client.post(f"/users/{uid}/revoke", headers=h).json()["status"] == "revoked"
+
+    # re-create the same email -> reactivated (not 409), new temp password, can change role
+    again = client.post("/users", headers=h, json={"email": "doc3@c.com", "role": "front_desk"})
+    assert again.status_code == 201, again.text
+    body = again.json()
+    assert body["id"] == uid and body["reactivated"] is True
+    assert body["status"] == "active" and body["temp_password"]
+    assert any(r["role"] == "front_desk" for r in body["roles"])
+    # the regenerated temp password works (and forces a reset)
+    assert _login(client, "doc3@c.com", body["temp_password"])["must_reset_password"] is True
+
+
+def test_recreate_active_user_still_conflicts(client):
+    _mk_user("admin4@c.com", "pw12345678", "clinic_admin", tenant_id="t-c4")
+    h = {"Authorization": f"Bearer {_login(client, 'admin4@c.com', 'pw12345678')['access_token']}"}
+    client.post("/users", headers=h, json={"email": "dup@c.com", "role": "doctor"})
+    r = client.post("/users", headers=h, json={"email": "dup@c.com", "role": "doctor"})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "email_taken"
+
+
 def test_change_password_clears_reset_flag(client):
     _mk_user("staff@c.com", "temp12345", "doctor", tenant_id="t-1", must_reset=True)
     login = _login(client, "staff@c.com", "temp12345")

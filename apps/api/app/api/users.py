@@ -74,14 +74,29 @@ def create_user(body: CreateUserIn, caller: dict = Depends(require_role("superad
     tenant_id = _resolve_target_tenant(caller, body.role, body.tenant_id)
     temp = generate_temp_password()
     with system_session() as db:
-        if db.query(User).filter(User.email == email).first() is not None:
-            raise AppError("email_taken", "A user with this email already exists.", status=409)
+        existing = db.query(User).filter(User.email == email).first()
+        if existing is not None and existing.status != "revoked":
+            raise AppError("email_taken", "An active user with this email already exists.", status=409)
+        if existing is not None:
+            # Re-creating a previously revoked email reactivates + updates that account
+            # (fresh temp password, force-reset) rather than failing.
+            _assert_can_manage(db, caller, existing)
+            existing.status = "active"
+            existing.must_reset_password = True
+            existing.password_hash = hash_password(temp)
+            if body.phone is not None:
+                existing.phone = body.phone or None
+            db.query(UserRole).filter(UserRole.user_id == existing.id,
+                                      UserRole.tenant_id == tenant_id).delete()
+            db.add(UserRole(user_id=existing.id, tenant_id=tenant_id, role=body.role))
+            db.flush()
+            return {**_user_view(db, existing), "temp_password": temp, "reactivated": True}
         u = User(email=email, phone=(body.phone or None), password_hash=hash_password(temp),
                  must_reset_password=True, status="active")
         db.add(u)
         db.flush()
         db.add(UserRole(user_id=u.id, tenant_id=tenant_id, role=body.role))
-        return {**_user_view(db, u), "temp_password": temp}
+        return {**_user_view(db, u), "temp_password": temp, "reactivated": False}
 
 
 @router.get("")

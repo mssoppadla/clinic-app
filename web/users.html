@@ -67,14 +67,21 @@ async function load(){
     $('#list').innerHTML = rows.length ? rows.map(u=>{
       const roles = (u.roles||[]).map(x=>ROLE_LABEL[x.role]||x.role).join(', ');
       const revoked = u.status==='revoked';
+      const r0 = (u.roles||[])[0] || {};
+      const action = revoked
+        ? `<button class="btn ghost sm" data-react="${u.email}" data-role="${r0.role||'doctor'}" data-tenant="${r0.tenant_id||''}">Reactivate</button>`
+        : `<button class="btn ghost sm" data-revoke="${u.id}">Revoke</button>`;
       return `<div class="kv">
         <span><b>${u.email}</b> <span class="muted">${roles}${u.phone?' · '+u.phone:''}</span>
           ${revoked?'<span class="pill r" style="margin-left:6px">revoked</span>':(u.must_reset_password?'<span class="pill a" style="margin-left:6px">pending first login</span>':'')}</span>
-        ${revoked?'':`<button class="btn ghost sm" data-revoke="${u.id}">Revoke</button>`}
+        ${action}
       </div>`;
     }).join('') : '<p class="muted" style="padding:8px 0">No users yet.</p>';
     $('#list').querySelectorAll('[data-revoke]').forEach(b=>{
       b.onclick = ()=>revoke(b.getAttribute('data-revoke'), b);
+    });
+    $('#list').querySelectorAll('[data-react]').forEach(b=>{
+      b.onclick = ()=>reactivate(b.getAttribute('data-react'), b.getAttribute('data-role'), b.getAttribute('data-tenant'), b);
     });
   }catch(e){ showError('Network error.'); }
 }
@@ -97,6 +104,19 @@ $('#addBtn').onclick = async ()=>{
   }catch(e){ showError('Network error.'); }
   finally{ $('#addBtn').disabled = false; }
 };
+
+async function reactivate(email, role, tenant, btn){
+  clearError(); $('#created').innerHTML=''; btn.disabled=true;
+  const body = { email, role }; if(tenant) body.tenant_id = tenant;
+  try{
+    const r = await authFetch(`${API}/users`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error&&d.error.message)||'Could not reactivate'); btn.disabled=false; return; }
+    $('#created').innerHTML = `<div class="result ok" style="margin-top:10px">Reactivated <b>${d.email}</b>. New temporary password (shown once):
+      <div class="snippet" style="margin-top:6px">${d.temp_password}</div></div>`;
+    load();
+  }catch(e){ showError('Network error.'); btn.disabled=false; }
+}
 
 async function revoke(id, btn){
   clearError(); btn.disabled=true;
