@@ -1,0 +1,176 @@
+openapi: 3.1.0
+info:
+  title: Clinic Booking SaaS API
+  version: "1.0.0"
+  description: >
+    UI<->API contract (lean MVP, additive/backward-compatible).
+    Tenancy resolved server-side (slug/host/token) — never client-supplied for scoping.
+    All money in minor units (paise). Times UTC. English-always labels.
+servers:
+  - url: https://tovaitech.in/api/v1
+components:
+  securitySchemes:
+    staffAuth: { type: http, scheme: bearer, bearerFormat: JWT }   # role+scope in claims
+    patientOtp: { type: http, scheme: bearer, bearerFormat: JWT }  # scope=patient.self
+    apiKey: { type: apiKey, in: header, name: X-Api-Key }          # integrations
+    deviceToken: { type: http, scheme: bearer }                    # kiosk scope=kiosk.walkin
+  parameters:
+    Idempotency: { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+    Limit: { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            field_errors:
+              type: array
+              items: { type: object, properties: { field: {type: string}, code: {type: string} } }
+            trace_id: { type: string }
+            retryable: { type: boolean, default: false }
+    Page:
+      type: object
+      properties:
+        items: { type: array, items: {} }
+        next_cursor: { type: [string, "null"] }
+    Money: { type: object, properties: { amount_minor: {type: integer}, currency: {type: string, default: INR} } }
+    EventEnvelope:
+      type: object
+      properties:
+        event_id: {type: string}
+        event_type: {type: string}
+        event_version: {type: integer, default: 1}
+        tenant_id: {type: string}
+        occurred_at: {type: string, format: date-time}
+        actor: { type: object, properties: { type: {type: string}, id: {type: string} } }
+        idempotency_key: {type: string}
+        payload: { type: object, additionalProperties: true }   # tolerant readers ignore unknown
+    BookingCreate:
+      type: object
+      required: [doctor_id, mode, patients, contact_phone]
+      properties:
+        doctor_id: {type: string}
+        mode: {type: string, enum: [join_queue, slot]}
+        slot_id: {type: [string, "null"]}
+        patients:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items: { type: object, required: [name], properties: { name: {type: string}, abha_ref: {type: [string, "null"]} } }
+        contact_phone: {type: string}
+        whatsapp_same: {type: boolean, default: true}
+        reason: {type: [string, "null"]}
+        consent: {type: boolean}
+    Booking:
+      type: object
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [held, confirmed, cancelled, completed, no_show, skipped]}
+        channel: {type: string, enum: [online, walkin, advance]}
+        party_size: {type: integer}
+        fee_total: { $ref: '#/components/schemas/Money' }
+        reason: {type: [string, "null"]}
+        in_premises: {type: boolean, default: false}
+        tokens:
+          type: array
+          items: { type: object, properties: { number: {type: string}, patient_name: {type: string}, eta: {type: string, format: date-time}, provisional: {type: boolean}, short_code: {type: string}, qr_url: {type: string} } }
+        payment_status: {type: string, enum: [none, pending, paid, pay_at_clinic, refunded]}
+    ClinicPublic:
+      type: object
+      properties:
+        slug: {type: string}
+        name: {type: string}
+        branding: { type: object, additionalProperties: true }
+        languages: { type: array, items: {type: string} }
+        queue_count: {type: integer}
+        avg_wait_minutes: {type: integer}
+        doctors: { type: array, items: { type: object, properties: { id: {type: string}, name: {type: string}, specialty: {type: string}, fee: { $ref: '#/components/schemas/Money' } } } }
+security: []
+paths:
+  /auth/login: { post: { summary: Staff login (passkey/Google/password), responses: { '200': {description: tokens} } } }
+  /auth/refresh: { post: { summary: Refresh token, responses: { '200': {description: ok} } } }
+  /auth/forgot: { post: { summary: Forgot/reset password (staff/doctor), responses: { '202': {description: email sent} } } }
+  /auth/otp/request: { post: { summary: Patient OTP request, responses: { '202': {description: sent} } } }
+  /auth/otp/verify: { post: { summary: Patient OTP verify -> patient token, responses: { '200': {description: token} } } }
+  /users/invite:
+    post: { summary: Invite user with role (admin/doctor/front_desk/triage); multiple admins allowed, security: [{staffAuth: []}], responses: { '201': {description: invited} } }
+  /users/{id}/revoke:
+    post: { summary: Revoke user (instant access loss, audited), security: [{staffAuth: []}], responses: { '204': {description: revoked} } }
+  /onboarding/clinic: { post: { summary: Create tenant + account, responses: { '201': {description: created} } } }
+  /onboarding/status: { get: { summary: Readiness per step (mandatory/optional) + go-live, security: [{staffAuth: []}], responses: { '200': {description: status} } } }
+  /onboarding/whatsapp/embedded-signup/callback: { post: { summary: Capture WABA+number+token, then register+webhooks+READY, security: [{staffAuth: []}], responses: { '200': {description: ok} } } }
+  /onboarding/override: { post: { summary: Provider waives a readiness check (audited), security: [{staffAuth: []}], responses: { '200': {description: ok} } } }
+  /clinic/profile:
+    get: { summary: Get clinic profile/branding/languages, security: [{staffAuth: []}], responses: { '200': {description: ok} } }
+    put: { summary: Update profile/branding (English-always locked), security: [{staffAuth: []}], responses: { '200': {description: ok} } }
+  /config:
+    get: { summary: Get tenant config (slots, per-session cutoff, refund, fee, flags), security: [{staffAuth: []}], responses: { '200': {description: ok} } }
+    put: { summary: Update config (hot-reload, versioned), security: [{staffAuth: []}], responses: { '200': {description: ok} } }
+  /doctors:
+    get: { summary: List doctors, security: [{staffAuth: []}], responses: { '200': {description: ok} } }
+    post: { summary: Add doctor, security: [{staffAuth: []}], responses: { '201': {description: created} } }
+  /doctors/{id}/availability:
+    get: { summary: List custom availability timelines, security: [{staffAuth: []}], responses: { '200': {description: ok} } }
+    post: { summary: Add/edit timeline (hours, capacity, rrule, breaks), security: [{staffAuth: []}], responses: { '201': {description: ok} } }
+  /clinics/{slug}:
+    get:
+      summary: Public landing (queue count, avg wait, doctors)
+      responses: { '200': { content: { application/json: { schema: { $ref: '#/components/schemas/ClinicPublic' } } } } }
+  /clinics/{slug}/availability:
+    get:
+      summary: Real-time slots with free capacity
+      parameters: [ {name: doctor, in: query, schema: {type: string}}, {name: date, in: query, schema: {type: string}} ]
+      responses: { '200': {description: slots} }
+  /bookings:
+    post:
+      summary: Create booking (multi-patient overflow, atomic lock)
+      security: [{patientOtp: []}, {staffAuth: []}]
+      parameters: [ {$ref: '#/components/parameters/Idempotency'} ]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/BookingCreate' } } } }
+      responses:
+        '201': { content: { application/json: { schema: { $ref: '#/components/schemas/Booking' } } } }
+        '409': { description: slot taken, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: dependency down (retryable), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /bookings/{id}/confirm: { post: { summary: Confirm after payment, security: [{patientOtp: []}], responses: {'200':{description: ok}} } }
+  /bookings/{id}/cancel: { post: { summary: Cancel (WhatsApp OTP) -> refund per policy, security: [{patientOtp: []}], responses: {'200':{description: ok}} } }
+  /bookings/{id}/reschedule: { post: { summary: Reschedule to another slot, security: [{patientOtp: []}], responses: {'200':{description: ok}} } }
+  /bookings/{id}/shift: { post: { summary: Shift earlier/later within availability, security: [{patientOtp: []}], responses: {'200':{description: ok}} } }
+  /bookings/{id}/in-premises: { post: { summary: Patient marks 'I am at the clinic' (prioritise if slot free), security: [{patientOtp: []}], responses: {'200':{description: ok}} } }
+  /me/bookings: { get: { summary: Patient's own bookings (scoped), security: [{patientOtp: []}], responses: {'200':{description: ok}} } }
+  /queue: { get: { summary: Live queue + ETA (also WS), security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /queue/{entry}/mark-done: { post: { summary: Doctor mark done -> advance, security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /queue/{entry}/skip: { post: { summary: Skip -> status skipped, security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /queue/{entry}/recall: { post: { summary: Recall a skipped patient, security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /walkins: { post: { summary: Front-desk new walk-in token, security: [{staffAuth: []}], parameters: [{$ref: '#/components/parameters/Idempotency'}], responses: {'201':{description: ok}} } }
+  /kiosk/token: { post: { summary: Issue token (offline-capable, leased block), security: [{deviceToken: []}], parameters: [{$ref: '#/components/parameters/Idempotency'}], responses: {'201':{description: ok}} } }
+  /kiosk/sync: { post: { summary: Reconcile offline outbox (idempotent), security: [{deviceToken: []}], responses: {'200':{description: ok}} } }
+  /emergency: { post: { summary: Online emergency (optional name/phone; matches registered patient), security: [{patientOtp: []}], responses: {'202':{description: staff alerted}} } }
+  /emergency/{id}/decide: { post: { summary: Staff grant wild-entry / ER / decline (queue auto-shift), security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /payments/intent: { post: { summary: Create payment on clinic's gateway (BYO); fallback pay_at_clinic if down, parameters: [{$ref: '#/components/parameters/Idempotency'}], responses: {'200':{description: ok}} } }
+  /payments/webhook/{provider}: { post: { summary: Inbound payment webhook (signed, idempotent), responses: {'200':{description: ack}} } }
+  /refunds: { post: { summary: One-tap/auto refund per policy, security: [{staffAuth: []}], parameters: [{$ref: '#/components/parameters/Idempotency'}], responses: {'200':{description: ok}} } }
+  /templates: { get: { summary: WhatsApp templates (per-language, approval state), security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /patients: { get: { summary: Match returning patient by phone, security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /consents: { post: { summary: Record consent (DPDP), responses: {'201':{description: ok}} } }
+  /integrations/appointments: { get: { summary: CRM read (paginated), security: [{apiKey: []}], parameters: [{$ref: '#/components/parameters/Cursor'},{$ref: '#/components/parameters/Limit'}], responses: {'200':{description: ok}} } }
+  /integrations/webhooks: { post: { summary: Register outbound CRM webhook URL, security: [{staffAuth: []}], responses: {'201':{description: ok}} } }
+  /integrations/appointments.csv: { get: { summary: Batch CSV export of appointments, security: [{apiKey: []}], responses: {'200':{description: csv}} } }
+  /integrations/reserve-with-google: { post: { summary: Issue Reserve-with-Google booking link (LATER), security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /reviews/request: { post: { summary: Trigger a Google review request (LATER), security: [{staffAuth: []}], responses: {'202':{description: ok}} } }
+  /queue/{entry}/delay: { post: { summary: Doctor sets running-late delay (recomputes ETAs), security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /admin/plans: { get: { summary: List plans, security: [{staffAuth: []}], responses: {'200':{description: ok}} }, post: { summary: Create/set plan price (superadmin), security: [{staffAuth: []}], responses: {'201':{description: ok}} } }
+  /admin/offers: { post: { summary: Create offer code, security: [{staffAuth: []}], responses: {'201':{description: ok}} } }
+  /admin/tenants: { get: { summary: List tenants + health, security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /admin/tenants/{id}/impersonate: { post: { summary: Audited, time-boxed impersonation, security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /admin/ai-models: { get: { summary: Platform AI model registry, security: [{staffAuth: []}], responses: {'200':{description: ok}} }, post: { summary: Register provider/model/key (active+fallback), security: [{staffAuth: []}], responses: {'201':{description: ok}} } }
+  /admin/finops: { get: { summary: AI/WhatsApp/all-API cost vs revenue per tenant, security: [{staffAuth: []}], responses: {'200':{description: ok}} } }
+  /analytics/{metric}:
+    get:
+      summary: no-show/wait/utilisation/revenue/refund (read replica)
+      security: [{staffAuth: []}]
+      responses: { '200': { description: ok } }
+

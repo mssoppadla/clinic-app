@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bilingual mockups — English + Malayalam (layout fit test)</title>
+<style>
+:root{--bg:#f5f7f9;--card:#fff;--ink:#0f172a;--muted:#667085;--line:#e6e9ef;--brand:#0e7c66;--brand-soft:#e6f3ef;--accent:#2563eb;--amber:#b45309;--ok:#15803d;--ok-soft:#e7f5ec;--red:#dc2626;--cfg:#7c3aed;--r:16px;--shadow:0 1px 2px rgba(16,24,40,.04),0 6px 18px rgba(16,24,40,.06)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,'Segoe UI','Noto Sans Malayalam',Inter,Roboto,Arial,sans-serif;line-height:1.4}
+.top{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:16px 28px}
+.top h1{font-size:18px;margin:0;font-weight:650}.top p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+.section{max-width:1500px;margin:0 auto;padding:26px 28px 2px}
+.section h2{font-size:15px;margin:0;font-weight:650}
+.grid{max-width:1500px;margin:0 auto;padding:10px 28px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px;align-items:start}
+.frame{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.flabel{font-size:11.5px;color:var(--muted);padding:9px 13px;border-bottom:1px solid var(--line);background:#fbfcfd;font-weight:600}
+.pad{padding:14px}
+.phone{margin:12px auto;width:250px;border:9px solid #0b1220;border-radius:28px;overflow:hidden;background:#fff}
+.bar{height:22px;background:var(--brand)}.bar.dark{background:#0b1220}.bar.red{background:var(--red)}
+.kiosk{margin:12px;border:10px solid #0b1220;border-radius:14px;overflow:hidden;background:#fff}
+.win{margin:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.winbar{display:flex;gap:6px;padding:7px 9px;background:#f0f2f5;border-bottom:1px solid var(--line);align-items:center}
+.dot3{width:8px;height:8px;border-radius:50%;background:#cdd3dc}.url{margin-left:8px;font-size:10px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+/* bilingual label: English line (primary) + Malayalam line (secondary) */
+.bi b{display:block;font-weight:650}
+.bi .ml{display:block;color:var(--muted);font-size:.85em;font-weight:500}
+h3.bi b{font-size:15px}h3.bi .ml{font-size:12px}
+.muted{color:var(--muted);font-size:11.5px}
+.btn{display:block;width:100%;border:none;border-radius:11px;padding:9px 11px;font-weight:600;background:var(--brand);color:#fff;text-align:center;cursor:pointer;line-height:1.25}
+.btn .ml{display:block;font-weight:500;font-size:10.5px;opacity:.92}
+.btn.accent{background:var(--accent)}.btn.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand)}.btn.dark{background:#0b1220}
+.btn.sm{font-size:11px;padding:7px 9px}
+.row{display:flex;gap:8px;align-items:center}.row.wrap{flex-wrap:wrap}.mt{margin-top:9px}
+.field{margin-bottom:9px}.field .lbl{font-size:10.5px;color:var(--muted);margin-bottom:3px;font-weight:600}.field .lbl .ml{color:var(--muted)}
+.input{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12px;background:#fff}
+.pill{font-size:10.5px;border-radius:20px;padding:3px 9px;font-weight:600;background:#eef0fe;color:var(--accent);display:inline-block}
+.pill.g{background:var(--ok-soft);color:var(--ok)}.pill.a{background:#fdf2e0;color:var(--amber)}.pill.n{background:#eef1f5;color:#475569}.pill.r{background:#fdeaea;color:#b42318}
+.chip{font-size:10.5px;border:1px solid var(--line);border-radius:20px;padding:3px 9px;color:#475569;background:#fff;display:inline-block}.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.li{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:11.5px}.li.now{background:var(--ok-soft);border-color:#bfe6cf}.li.emg{background:#fdf2e0;border-color:#f3d9a8}
+.kv{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}.kv:last-child{border-bottom:none}
+.bigbtn{background:var(--brand);color:#fff;border-radius:18px;padding:26px 14px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+.bigbtn .en{font-size:21px;font-weight:700}.bigbtn .ml{font-size:13px;opacity:.92}
+.mic{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:23px}
+.token{border:2px dashed var(--brand);border-radius:14px;padding:13px;text-align:center}.token .n{font-size:36px;font-weight:800;color:var(--brand);line-height:1}
+.banner{border-radius:9px;padding:9px 10px;font-size:11.5px}.banner.g{background:var(--ok-soft);color:#14532d;border:1px solid #bfe6cf}.banner.red{background:#fdeaea;color:#b42318;border:1px solid #f3c6c6}
+.nav{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:8px;margin-top:8px;text-align:center}
+.nav span{font-size:9px}.nav .ic{font-size:16px}
+.note{max-width:1500px;margin:0 auto;padding:8px 28px}
+.adj{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+.adj li{margin-bottom:6px;font-size:12.5px}
+.foot{max-width:1500px;margin:18px auto 0;padding:18px 28px 50px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Bilingual mockups — English + Malayalam (clinic opted Malayalam)</h1>
+  <p>English stays on every label; Malayalam is added on a second line. Purpose: check the layout accommodates both. Malayalam strings are indicative — to be reviewed by a native speaker.</p>
+</div>
+
+<!-- PATIENT -->
+<div class="section"><h2>Patient — online booking (bilingual)</h2></div>
+<div class="grid">
+  <div class="frame"><div class="flabel">Landing</div><div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+    <div class="bi"><b style="color:var(--brand)">● Green Cross Clinic</b><span class="ml">ഗ്രീൻ ക്രോസ് ക്ലിനിക്</span></div>
+    <div class="row mt" style="gap:8px">
+      <div style="flex:1;background:#fbfcfd;border:1px solid var(--line);border-radius:11px;padding:9px;text-align:center"><b style="font-size:17px">14</b><div class="bi"><span class="ml" style="font-size:9.5px">In queue now<br>ഇപ്പോൾ ക്യൂവിൽ</span></div></div>
+      <div style="flex:1;background:#fbfcfd;border:1px solid var(--line);border-radius:11px;padding:9px;text-align:center"><b style="font-size:17px">~35m</b><div class="bi"><span class="ml" style="font-size:9.5px">Avg wait<br>ശരാശരി കാത്തിരിപ്പ്</span></div></div>
+    </div>
+    <button class="btn mt">Book appointment<span class="ml">അപ്പോയിന്റ്മെന്റ് ബുക്ക് ചെയ്യുക</span></button>
+    <p class="muted mt">English always · + മലയാളം</p>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Join queue / pick slot</div><div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+    <h3 class="bi"><b>Dr. Nair · Ortho</b><span class="ml">ഡോ. നായർ · ഓർത്തോ</span></h3>
+    <div class="li now"><span class="bi"><b>Join running queue</b><span class="ml">ഇപ്പോഴത്തെ ക്യൂവിൽ ചേരുക</span></span><span class="pill g">~#28</span></div>
+    <div class="bi" style="margin:6px 0 4px"><span class="ml">Or pick a slot · സ്ലോട്ട് തിരഞ്ഞെടുക്കുക</span></div>
+    <div class="row wrap" style="gap:6px"><span class="chip">10:00</span><span class="chip on">11:00</span><span class="chip">11:30</span><span class="chip">5:00</span></div>
+    <button class="btn mt">Continue<span class="ml">തുടരുക</span></button>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Details + OTP login</div><div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+    <h3 class="bi"><b>Your details</b><span class="ml">നിങ്ങളുടെ വിവരങ്ങൾ</span></h3>
+    <div class="field"><div class="lbl bi">Patient name<span class="ml">രോഗിയുടെ പേര്</span></div><div class="input">Arun Menon</div></div>
+    <div class="field"><div class="lbl bi">Mobile (your login) · OTP<span class="ml">മൊബൈൽ (ലോഗിൻ) · OTP</span></div><div class="row"><div class="input" style="flex:1">+91 98•••• · 4291</div><span class="pill g">✓</span></div></div>
+    <button class="btn">+ Add patient (up to 3)<span class="ml">രോഗിയെ ചേർക്കുക (3 വരെ)</span></button>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Payment (clinic gateway)</div><div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+    <h3 class="bi"><b>Confirm &amp; pay</b><span class="ml">സ്ഥിരീകരിച്ച് പണമടയ്ക്കുക</span></h3>
+    <div class="kv"><span class="bi">Consultation fee<span class="ml">കൺസൾട്ടേഷൻ ഫീസ്</span></span><b>₹300</b></div>
+    <div class="row wrap" style="gap:5px"><span class="chip on">UPI</span><span class="chip">PhonePe</span><span class="chip">Card</span></div>
+    <button class="btn mt">Pay ₹300 &amp; confirm<span class="ml">₹300 അടച്ച് സ്ഥിരീകരിക്കുക</span></button>
+    <button class="btn ghost mt sm">Reserve &amp; pay at clinic<span class="ml">ക്ലിനിക്കിൽ പണമടയ്ക്കുക</span></button>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Live status (WhatsApp) + nav</div><div class="pad"><div class="phone"><div class="bar dark"></div><div class="pad" style="background:#e9e4dd">
+    <div class="banner" style="background:#fff">✅ Booked · token A‑18 · ~10:50<br><span class="muted">ബുക്ക് ചെയ്തു · ടോക്കൺ A‑18</span></div>
+    <div class="banner mt" style="background:#dcf8c6;margin-left:18px">Now serving 12 · you are 18 · ~30 min<br><span class="muted">ഇപ്പോൾ 12 · നിങ്ങൾ 18 · ~30 മിനിറ്റ്</span></div>
+    <div class="nav" style="background:#fff;border-radius:8px;padding:6px">
+      <span><div class="ic">🏠</div>Home·ഹോം</span><span style="color:var(--brand);font-weight:700"><div class="ic">📅</div>Bookings·ബുക്കിംഗ്</span><span><div class="ic">🆘</div>Help·സഹായം</span><span><div class="ic">👤</div>Me·ഞാൻ</span>
+    </div>
+  </div></div></div></div>
+</div>
+
+<!-- SENIOR KIOSK -->
+<div class="section"><h2>Senior — kiosk (bilingual)</h2></div>
+<div class="grid">
+  <div class="frame"><div class="flabel">Kiosk home</div><div class="pad"><div class="kiosk"><div class="bar"></div><div class="pad">
+    <div class="bi"><b style="color:var(--brand)">● Green Cross Clinic</b><span class="ml">ഗ്രീൻ ക്രോസ് ക്ലിനിക്</span></div>
+    <div class="bigbtn mt"><div class="mic">🎤</div><div class="en">Press to start</div><div class="ml">തുടങ്ങാൻ അമർത്തുക</div></div>
+    <div class="row mt" style="justify-content:center;gap:8px"><span class="chip on">🗣️ Voice · ശബ്ദം</span><span class="chip">⌨️ Keypad · കീപാഡ്</span></div>
+    <div class="banner red mt">🚨 Emergency? See front desk / Casualty<br><span style="opacity:.8">അടിയന്തിരം? ഫ്രണ്ട് ഡെസ്കിൽ ബന്ധപ്പെടുക</span></div>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Capture name + phone</div><div class="pad"><div class="kiosk"><div class="bar"></div><div class="pad">
+    <h3 class="bi"><b>Please say your name</b><span class="ml">നിങ്ങളുടെ പേര് പറയൂ</span></h3>
+    <div class="row"><div class="input" style="flex:1">🎤 Achamma Varghese</div><span class="pill g">read‑back ✓</span></div>
+    <div class="field mt"><div class="lbl bi">Phone (keypad)<span class="ml">ഫോൺ നമ്പർ</span></div><div class="input">9846•••321</div></div>
+    <button class="btn mt">Get my token<span class="ml">എന്റെ ടോക്കൺ എടുക്കുക</span></button>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Token + spoken</div><div class="pad"><div class="kiosk"><div class="bar"></div><div class="pad">
+    <h3 class="bi"><b>Your token</b><span class="ml">നിങ്ങളുടെ ടോക്കൺ</span></h3>
+    <div class="token"><div class="n">A‑19</div><div class="muted">approx 10:55 · 6 ahead<br>ഏകദേശം 10:55 · 6 പേർ മുന്നിൽ</div></div>
+    <div class="banner g mt">🔊 “Your token is A‑19” · “നിങ്ങളുടെ ടോക്കൺ A‑19” — always spoken</div>
+    <button class="btn mt">Print token<span class="ml">ടോക്കൺ പ്രിന്റ് ചെയ്യുക</span></button>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Display board</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="url">lobby TV</span></div>
+    <div class="pad" style="background:#0b1220;color:#fff;text-align:center">
+      <div class="muted" style="color:#9aa6b6">NOW SERVING · ഇപ്പോൾ പരിശോധിക്കുന്നു</div>
+      <div style="font-size:48px;font-weight:800;color:#34d399">A‑12</div>
+      <div style="color:#cbd5e1;font-size:12px">Next · അടുത്തത് — A‑13</div>
+    </div></div></div></div>
+</div>
+
+<!-- STAFF -->
+<div class="section"><h2>Staff screens (bilingual labels)</h2></div>
+<div class="grid">
+  <div class="frame"><div class="flabel">Doctor — live queue</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="url">doctor</span></div><div class="pad">
+    <div class="li now"><span class="bi"><b>A‑12 Suresh · now</b><span class="ml">ഇപ്പോൾ</span></span><button class="btn sm" style="width:auto">Mark done<span class="ml">പൂർത്തിയായി</span></button></div>
+    <div class="li"><span class="bi"><b>A‑13 Fathima</b><span class="ml">അടുത്തത്</span></span><button class="btn ghost sm" style="width:auto">Skip<span class="ml">ഒഴിവാക്കുക</span></button></div>
+    <div class="li emg"><span class="bi"><b>⚡ Emergency · Child</b><span class="ml">അടിയന്തിരം</span></span><button class="btn sm" style="width:auto;background:var(--amber)">Accept<span class="ml">സ്വീകരിക്കുക</span></button></div>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Front-desk — day</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="url">front-desk</span></div><div class="pad">
+    <div class="row wrap" style="gap:6px"><span class="pill">Online · ഓൺലൈൻ 9</span><span class="pill n">Walk-in · നേരിട്ട് 12</span><span class="pill a">Pre-booked · മുൻകൂർ 4</span></div>
+    <div class="li mt"><span class="bi"><b>A‑14 Joseph</b><span class="ml">ഒഴിവാക്കി</span></span><span class="row" style="gap:6px"><button class="btn ghost sm" style="width:auto">Recall<span class="ml">തിരികെ</span></button></span></div>
+    <button class="btn mt sm">+ Add walk-in<span class="ml">നേരിട്ട് വന്നയാളെ ചേർക്കുക</span></button>
+  </div></div></div></div>
+
+  <div class="frame"><div class="flabel">Admin — settings (sample)</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="url">settings</span></div><div class="pad">
+    <div class="kv"><span class="bi">Patients per slot<span class="ml">ഓരോ സ്ലോട്ടിലും രോഗികൾ</span></span><b>2 ▾</b></div>
+    <div class="kv"><span class="bi">Online booking fee<span class="ml">ഓൺലൈൻ ബുക്കിംഗ് ഫീസ്</span></span><b>₹300 ▾</b></div>
+    <div class="kv"><span class="bi">Also show Malayalam<span class="ml">മലയാളം കൂടി കാണിക്കുക</span></span><span class="pill g">ON</span></div>
+    <button class="btn mt">Save<span class="ml">സംരക്ഷിക്കുക</span></button>
+  </div></div></div></div>
+</div>
+
+<div class="note"><div class="adj">
+<b>Layout adjustments this surfaces (and how we handle them):</b>
+<ul>
+<li>Labels become <b>two lines</b> → set min-heights on buttons/cards and use line-height ~1.25 so nothing clips; never truncate the Malayalam line.</li>
+<li>Malayalam runs <b>longer &amp; taller</b> than English → fluid widths, wrap-friendly chips/pills, no fixed-height rows.</li>
+<li>Bundle a <b>Malayalam-capable font</b> (e.g., Noto Sans Malayalam) so glyphs render on every device/kiosk.</li>
+<li>Buttons hold English (bold) + Malayalam (lighter) stacked → keep tap targets ≥44px; senior kiosk uses larger type.</li>
+<li>Numbers/tokens/time stay one line; only the descriptive label is bilingual.</li>
+<li>It's additive: turning Malayalam OFF simply hides the second line — English layout is unchanged (backward-compatible).</li>
+<li>Not RTL — no mirroring needed; just vertical space.</li>
+</ul>
+</div></div>
+
+<div class="foot">Bilingual layout test. English is permanent; Malayalam is the opt-in second line. Malayalam wording is indicative and needs native review before launch. Pairs with the English-default file (Mockups_v2_AllPersonas.html).</div>
+</body>
+</html>

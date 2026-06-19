@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Clinic Booking — Mockups (all personas) · 2026</title>
+<style>
+:root{
+  --bg:#f5f7f9; --card:#ffffff; --ink:#0f172a; --muted:#667085; --line:#e6e9ef;
+  --brand:#0e7c66; --brand-soft:#e6f3ef; --accent:#2563eb; --accent-soft:#e8f0fe;
+  --amber:#b45309; --amber-soft:#fdf2e0; --red:#dc2626; --red-soft:#fdeaea;
+  --ok:#15803d; --ok-soft:#e7f5ec; --cfg:#7c3aed; --cfg-soft:#f1e9fd;
+  --r:18px; --r2:12px; --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:ui-sans-serif,system-ui,'Segoe UI',Inter,Roboto,Arial,sans-serif;line-height:1.45}
+.top{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.9);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);padding:16px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.top h1{font-size:18px;margin:0;font-weight:650}
+.top p{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);align-items:center;flex-wrap:wrap}
+.legend b{color:var(--cfg)}
+.cfg{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:var(--cfg);
+  background:var(--cfg-soft);border-radius:20px;padding:1px 7px;vertical-align:middle}
+.section{padding:30px 28px 6px;max-width:1500px;margin:0 auto}
+.section h2{font-size:15px;font-weight:650;margin:0 0 2px;display:flex;align-items:center;gap:10px}
+.section .who{color:var(--muted);font-size:12.5px;margin:0 0 4px}
+.persona-tag{font-size:10.5px;font-weight:650;color:#fff;background:var(--brand);border-radius:20px;padding:2px 10px}
+.grid{max-width:1500px;margin:0 auto;padding:8px 28px 8px;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px;align-items:start}
+.frame{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.frame.wide{grid-column:span 2}
+.flabel{font-size:11.5px;color:var(--muted);padding:9px 14px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;background:#fbfcfd;font-weight:600}
+.flabel .step{font-size:10px;color:#fff;background:#0f172a;border-radius:20px;padding:1px 8px}
+.pad{padding:16px}
+/* phone */
+.phone{margin:14px auto;width:262px;border:10px solid #0b1220;border-radius:30px;background:#fff;overflow:hidden}
+.bar{height:24px;background:var(--brand)}
+.bar.alt{background:var(--accent)} .bar.red{background:var(--red)} .bar.dark{background:#0b1220}
+/* kiosk / tablet */
+.kiosk{margin:12px auto;border:11px solid #0b1220;border-radius:16px;background:#fff;overflow:hidden}
+/* desktop window */
+.win{border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.winbar{display:flex;gap:6px;padding:8px 10px;background:#f0f2f5;border-bottom:1px solid var(--line);align-items:center}
+.dot3{width:9px;height:9px;border-radius:50%;background:#cdd3dc}
+.winurl{margin-left:8px;font-size:10.5px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+h3{margin:0 0 3px;font-size:15px}
+h4{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:500}
+.muted{color:var(--muted);font-size:12px}
+.btn{display:block;width:100%;border:none;border-radius:11px;padding:11px;font-size:13px;font-weight:600;background:var(--brand);color:#fff;cursor:pointer;text-align:center}
+.btn.accent{background:var(--accent)} .btn.ghost{background:#fff;color:var(--brand);border:1.5px solid var(--brand)}
+.btn.ghost.b{color:var(--accent);border-color:var(--accent)} .btn.red{background:var(--red)} .btn.amber{background:var(--amber)} .btn.dark{background:#0b1220}
+.btn.sm{padding:7px 10px;width:auto;font-size:11.5px;display:inline-block}
+.row{display:flex;gap:8px;align-items:center}.row.wrap{flex-wrap:wrap}.mt{margin-top:10px}
+.field{margin-bottom:10px}.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;background:#fff;color:var(--ink)}
+.pill{display:inline-block;font-size:11px;border-radius:20px;padding:3px 10px;font-weight:600;background:var(--accent-soft);color:var(--accent)}
+.pill.g{background:var(--ok-soft);color:var(--ok)} .pill.a{background:var(--amber-soft);color:var(--amber)} .pill.r{background:var(--red-soft);color:var(--red)} .pill.n{background:#eef1f5;color:#475569}
+.chip{font-size:10.5px;border:1px solid var(--line);border-radius:20px;padding:3px 9px;color:#475569;background:#fff;display:inline-block}
+.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.toggle{width:38px;height:22px;background:var(--brand);border-radius:20px;position:relative;flex:0 0 auto}
+.toggle::after{content:'';position:absolute;right:3px;top:3px;width:16px;height:16px;background:#fff;border-radius:50%}
+.toggle.off{background:#cdd3dc}.toggle.off::after{right:auto;left:3px}
+.kv{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.kv:last-child{border-bottom:none}
+.bigbtn{background:var(--brand);color:#fff;border-radius:20px;padding:30px 14px;text-align:center;font-size:21px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 10px 24px rgba(14,124,102,.28)}
+.bigbtn small{font-size:13px;font-weight:500;opacity:.92}
+.mic{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:24px}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}
+.key{background:#f4f6f9;border:1px solid var(--line);border-radius:10px;padding:13px;text-align:center;font-weight:600}
+.token{border:2px dashed var(--brand);border-radius:14px;padding:14px;text-align:center;margin-top:10px}
+.token .n{font-size:38px;font-weight:800;color:var(--brand);line-height:1}
+.li{display:flex;justify-content:space-between;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:11px;margin-bottom:7px;font-size:12px;background:#fff}
+.li.now{background:var(--ok-soft);border-color:#bfe6cf}
+.li.emg{background:var(--amber-soft);border-color:#f3d9a8}
+.side{display:flex;gap:0}
+.nav{width:120px;border-right:1px solid var(--line);padding:10px;background:#fbfcfd;flex:0 0 auto}
+.nav .ni{font-size:11.5px;color:#475569;padding:7px 8px;border-radius:8px;margin-bottom:2px}
+.nav .ni.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.codebox{background:#0b1220;color:#7fe0b0;font-family:ui-monospace,Consolas,monospace;font-size:10.5px;border-radius:10px;padding:11px;white-space:pre-wrap;word-break:break-word}
+.banner{border-radius:10px;padding:10px 11px;font-size:12px;font-weight:600}
+.banner.red{background:var(--red-soft);color:#a4262c;border:1px solid #f3c6c6}
+.banner.cfg{background:var(--cfg-soft);color:#5b21b6;border:1px solid #e3d3fb}
+.stat{flex:1;background:#fbfcfd;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stat b{display:block;font-size:18px}.stat span{font-size:10.5px;color:var(--muted)}
+.cap{max-width:1500px;margin:0 auto;padding:2px 28px 18px;color:var(--muted);font-size:12px}
+.footer{max-width:1500px;margin:0 auto;padding:20px 28px 50px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:20px}
+.swatch{width:18px;height:18px;border-radius:5px;display:inline-block;vertical-align:middle;border:1px solid rgba(0,0,0,.08)}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><h1>Clinic Booking — interactive mockups</h1><p>All personas &amp; journeys · 2026 design language · everything user/admin-facing is configurable</p></div>
+  <div class="legend"><span><b>⚙ configurable</b> = clinic admin can change it (no hardcoding)</span><span class="pill g">live</span><span class="pill a">pending</span><span class="pill r">action</span></div>
+</div>
+
+<!-- ============ PATIENT — ONLINE ============ -->
+<div class="section"><h2><span class="persona-tag">Patient · Arun, 34</span> Online booking journey</h2><p class="who">Tech-aware patient: discover → choose → verify (OTP login) → pay (clinic's gateway) → track live → manage.</p></div>
+<div class="grid">
+
+  <div class="frame">
+    <div class="flabel">Patient app — moving between screens</div>
+    <div class="pad"><div class="phone"><div class="bar"></div><div class="pad" style="min-height:320px;position:relative">
+      <h3>My bookings</h3><h4>Logged in via OTP (your phone)</h4>
+      <div class="li now"><span><b>A‑18 · Dr. Nair</b><br><span class="muted">Today ~10:50 · live</span></span><span class="pill g">track</span></div>
+      <div class="li"><span><b>City Dental</b><br><span class="muted">28 Jun · 5:00pm</span></span><span class="pill">upcoming</span></div>
+      <div class="row" style="position:absolute;left:8px;right:8px;bottom:6px;border-top:1px solid var(--line);padding-top:8px;justify-content:space-between;text-align:center">
+        <span style="font-size:10px"><div style="font-size:17px">🏠</div>Home</span>
+        <span style="font-size:10px;color:var(--brand);font-weight:700"><div style="font-size:17px">📅</div>Bookings</span>
+        <span style="font-size:10px"><div style="font-size:17px">🆘</div>Help</span>
+        <span style="font-size:10px"><div style="font-size:17px">👤</div>Me</span>
+      </div>
+    </div></div>
+    <p class="muted" style="padding:0 14px 12px">Bottom tabs switch screens: <b>Home/Book</b> · <b>My bookings + live status</b> · <b>Help</b> (Emergency, FAQ) · <b>Me</b> (profile/logout). Emergency is reachable from Help and from any live-status screen.</p></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Landing / discovery <span class="step">1</span></div>
+    <div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+      <div class="row" style="justify-content:space-between"><b style="color:var(--brand)">● Green Cross Clinic</b><span class="cfg">⚙ brand</span></div>
+      <h4 style="margin-top:6px">Kochi · Ortho, ENT, Derma</h4>
+      <div class="row mt"><div class="stat"><b>14</b><span>in queue now</span></div><div class="stat"><b>~35m</b><span>avg wait</span></div></div>
+      <button class="btn mt">Book appointment</button>
+      <div class="row mt"><button class="btn ghost sm" style="flex:1">💬 WhatsApp</button><button class="btn ghost b sm" style="flex:1">Reserve w/ Google</button></div>
+      <p class="muted mt">English always · + മലയാളം if clinic enables <span class="cfg">⚙</span></p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Join queue or pick a slot <span class="step">2</span></div>
+    <div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+      <h3>Dr. Nair · Ortho</h3><h4>Choose how to book</h4>
+      <div class="li now"><span><b>Join today's running queue</b><br><span class="muted">~ token #28 · approx 11:10</span></span><span class="pill g">live</span></div>
+      <p class="muted mt" style="margin-bottom:4px">or pick a free slot — 2 per 30 min <span class="cfg">⚙ capacity</span></p>
+      <div class="row wrap" style="gap:6px">
+        <span class="chip">10:00</span><span class="chip">10:30</span><span class="chip on">11:00</span><span class="chip">11:30</span><span class="chip">5:00</span>
+      </div>
+      <button class="btn mt">Continue</button>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Details + OTP login <span class="step">3</span></div>
+    <div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+      <h3>Your details</h3><h4>Passwordless — verified by OTP</h4>
+      <div class="field"><label>Patient name</label><div class="input">Arun Menon</div></div>
+      <div class="field"><label>Mobile (= your login)</label><div class="input">+91 98•••• </div></div>
+      <div class="row"><div class="input" style="flex:1">OTP · 4 2 9 1</div><span class="pill g">verified ✓</span></div>
+      <div class="field"><label>Reason for visit <span class="muted">(optional)</span></label><div class="input">Fever &amp; cough · 2 days</div></div>
+      <p class="muted mt">☑ WhatsApp same as mobile · ☑ consent to store &amp; message (DPDP) <span class="cfg">⚙ text</span></p>
+      <button class="btn mt">+ Add patient (up to 3)</button>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Payment — clinic's own gateway <span class="step">4</span></div>
+    <div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+      <h3>Confirm &amp; pay</h3>
+      <div class="kv"><span>Consultation fee <span class="cfg">⚙ amount</span></span><b>₹300</b></div>
+      <div class="kv"><span>Pay via</span><span class="row" style="gap:5px"><span class="chip on">UPI</span><span class="chip">PhonePe</span><span class="chip">Card</span></span></div>
+      <p class="muted mt">Paid to the clinic directly (their gateway). <span class="cfg">⚙ provider</span></p>
+      <button class="btn mt">Pay ₹300 &amp; confirm</button>
+      <button class="btn ghost mt sm" style="width:100%">Reserve &amp; pay at clinic</button>
+      <p class="muted mt" style="font-size:10.5px">↑ shown automatically if the gateway is down (no lost booking)</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Confirmation + live status <span class="step">5</span></div>
+    <div class="pad"><div class="phone"><div class="bar dark"></div><div class="pad" style="background:#e9e4dd">
+      <div class="banner" style="background:#fff">✅ Booked · token <b>A‑18</b> · Dr. Nair · ~10:50</div>
+      <div class="banner mt" style="background:#dcf8c6;margin-left:20px">Now serving <b>12</b> · you are <b>18</b> · ~30 min</div>
+      <div class="banner mt" style="background:#fff">⏳ Doctor ~15 min late · new ETA 11:05</div>
+      <div class="row mt"><button class="btn ghost sm" style="flex:1">Shift</button><button class="btn ghost sm" style="flex:1">I'm here</button><button class="btn ghost sm" style="flex:1">Cancel</button></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Manage / cancel (OTP) · refund <span class="step">6</span></div>
+    <div class="pad"><div class="phone"><div class="bar"></div><div class="pad">
+      <h3>My bookings</h3><h4>Login = your phone (OTP)</h4>
+      <div class="li"><span><b>A‑18 · Dr. Nair</b><br><span class="muted">Today ~10:50</span></span><span class="pill g">confirmed</span></div>
+      <div class="row mt"><button class="btn ghost sm" style="flex:1">Reschedule</button><button class="btn red sm" style="flex:1">Cancel</button></div>
+      <div class="banner mt" style="background:#f6f7f9">Cancel → WhatsApp OTP → refund ₹300 (auto) <span class="cfg">⚙ refund policy</span></div>
+    </div></div></div>
+  </div>
+
+</div>
+<p class="cap">Caregiver (Priya) uses the same flow — “+ Add patient” lets one phone book up to 3 family members (each its own token), all manageable from this one login.</p>
+
+<!-- ============ SENIOR — KIOSK ============ -->
+<div class="section"><h2><span class="persona-tag">Senior · Achamma, 68</span> Walk-in kiosk journey</h2><p class="who">Not tech-savvy: walks up, presses one big button, the app speaks in Malayalam, prints a token. No app, no login.</p></div>
+<div class="grid">
+
+  <div class="frame">
+    <div class="flabel">Kiosk home (always on) <span class="step">1</span></div>
+    <div class="pad"><div class="kiosk"><div class="bar"></div><div class="pad">
+      <div class="row" style="justify-content:space-between"><b style="color:var(--brand)">● Green Cross Clinic</b><span class="cfg">⚙ logo</span></div>
+      <div class="bigbtn" style="margin-top:14px"><div class="mic">🎤</div>Press to start<small>തുടങ്ങാൻ അമർത്തുക · appointment</small></div>
+      <div class="row mt" style="justify-content:center;gap:8px"><span class="chip on">🗣️ Voice</span><span class="chip">⌨️ Keypad</span><span class="chip">🌐 EN always · +ML <span class="cfg">⚙</span></span></div>
+      <div class="banner red mt">🚨 Emergency? Please see the front desk / Casualty</div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Capture name + phone <span class="step">2</span></div>
+    <div class="pad"><div class="kiosk"><div class="bar"></div><div class="pad">
+      <h3>Please say your name</h3><h4>നിങ്ങളുടെ പേര് പറയൂ · or type</h4>
+      <div class="row"><div class="input">🎤 Achamma Varghese</div><span class="pill g">read‑back ✓</span></div>
+      <div class="field mt"><label>Phone (keypad)</label><div class="input">9846•••321</div></div>
+      <div class="keypad"><div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key">4</div><div class="key">5</div><div class="key">6</div></div>
+      <p class="muted mt">☑ Consent — read aloud <span class="cfg">⚙ text/lang</span></p>
+      <button class="btn mt">Get my token →</button>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Token issued — spoken aloud <span class="step">3</span></div>
+    <div class="pad"><div class="kiosk"><div class="bar"></div><div class="pad">
+      <h3>Your token</h3>
+      <div class="token"><div class="muted">Dr. Nair · Morning</div><div class="n">A‑19</div><div class="muted">approx 10:55 · 6 ahead</div></div>
+      <div class="banner mt" style="background:var(--brand-soft);color:#0e7c66">🔊 Speaking: “Your token is A‑19, about 10:55” (+ Malayalam) — always spoken</div>
+      <div class="row mt"><button class="btn sm" style="flex:1">🔊 Repeat</button><button class="btn ghost sm" style="flex:1">Send to WhatsApp</button></div>
+      <p class="muted mt">Voice asks: “Print a paper token?” — if yes → prints <b>and</b> speaks the number <span class="cfg">⚙ on/off</span></p>
+      <button class="btn ghost mt sm" style="width:100%">🖨️ Print paper token (optional)</button>
+      <p class="muted mt" style="text-align:center">No payment here · pay at counter</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Waiting-room display board</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">display · lobby TV</span></div>
+    <div class="pad" style="background:#0b1220;color:#fff;text-align:center">
+      <div class="muted" style="color:#9aa6b6">NOW SERVING</div>
+      <div style="font-size:54px;font-weight:800;color:#34d399">A‑12</div>
+      <div class="row" style="justify-content:center;gap:18px;color:#cbd5e1;font-size:13px"><span>Next · A‑13</span><span>Then · A‑14</span></div>
+      <div class="muted mt" style="color:#9aa6b6">Dr. Nair · running ~15 min late <span class="cfg" style="background:#241b46;color:#c4b5fd">⚙ theme</span></div>
+    </div></div></div>
+  </div>
+
+</div>
+
+<!-- ============ EMERGENCY ============ -->
+<div class="section"><h2><span class="persona-tag">Bystander · emergency</span> Online emergency → staff decide</h2><p class="who">Online/remote only (walk-ins tell the desk in person). App routes to ER + alerts staff; a human grants priority.</p></div>
+<div class="grid">
+  <div class="frame">
+    <div class="flabel">Emergency request (online) <span class="step">from live-status / landing</span></div>
+    <div class="pad"><div class="phone"><div class="bar red"></div><div class="pad">
+      <div class="banner red">🚨 If life-threatening — go to Casualty / call 108 NOW</div>
+      <p class="muted mt">Reached from the online app's landing or your live-status page. We've alerted clinic staff.</p>
+      <div class="field mt"><label>Who needs help? (optional)</label><div class="input">Child · sudden unconsciousness</div></div>
+      <div class="field"><label>Name &amp; phone (optional)</label><div class="input">— · staff can fill later</div></div>
+      <button class="btn red mt">Alert staff now</button>
+      <p class="muted mt" style="font-size:10.5px">Name/phone not mandatory — staff complete it once the situation is under control. Priority is never automatic; a nurse/front-desk decides. Audited.</p>
+    </div></div></div>
+  </div>
+  <div class="frame">
+    <div class="flabel">Staff alert + decision (front-desk)</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">desk · alerts</span></div>
+    <div class="pad">
+      <div class="banner" style="background:var(--red-soft);color:#a4262c">⚡ EMERGENCY raised by a REGISTERED patient — 2s ago</div>
+      <div class="li emg mt"><span>⚡ <b>A‑13 Fathima</b> · 98••••321<br><span class="muted">already in today's queue — row highlighted</span></span><span class="pill r">match</span></div>
+      <div class="row mt"><button class="btn amber sm" style="flex:1">Grant wild entry</button><button class="btn ghost sm" style="flex:1">Send to ER</button><button class="btn ghost sm" style="flex:1">Decline</button></div>
+      <p class="muted mt">Because they registered earlier (name + phone), the system matches them and HIGHLIGHTS their existing row for staff. Wild entry → queue auto-shifts; others notified.</p>
+    </div></div></div>
+  </div>
+</div>
+
+<!-- ============ RECEPTIONIST ============ -->
+<div class="section"><h2><span class="persona-tag">Receptionist · Suma</span> Front-desk console</h2><p class="who">Runs the floor: unified day (all channels), add walk-ins, correct details, handle no-shows & emergencies.</p></div>
+<div class="grid">
+  <div class="frame wide">
+    <div class="flabel">Unified day — all channels in one queue</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">app · front-desk</span></div>
+    <div class="side"><div class="nav"><div class="ni on">Today's queue</div><div class="ni">Patients</div><div class="ni">Walk-in</div><div class="ni">Payments</div><div class="ni">Reports</div></div>
+    <div class="pad" style="flex:1">
+      <div class="row wrap" style="gap:6px"><span class="pill">Online 9</span><span class="pill n">Walk-in 12</span><span class="pill a">Pre-booked 4</span><span class="pill g">Now A‑12</span></div>
+      <p class="muted" style="margin:6px 0 2px">Pre-booked = booked on an earlier day for today · tap any row to Edit (correct details)</p>
+      <div class="mt">
+        <div class="li now"><span><b>A‑12 Suresh</b> · now · <span class="muted">walk-in</span></span><span class="row" style="gap:6px"><button class="btn sm">Done</button></span></div>
+        <div class="li"><span>A‑13 Fathima · <span class="muted">online</span></span><span class="row" style="gap:6px"><button class="btn ghost sm">Edit</button><span class="pill g">paid</span></span></div>
+        <div class="li"><span>A‑14 Joseph · <span class="pill a">skipped</span></span><span class="row" style="gap:6px"><button class="btn ghost sm">Recall</button><button class="btn ghost sm">Cancel</button></span></div>
+        <div class="li emg"><span>⚡ Emergency · Child (online)</span><button class="btn amber sm">Wild entry</button></div>
+        <div class="li"><span>A‑15 Arun · <span class="muted">pre-booked</span></span><span class="pill g">paid</span></div>
+      </div>
+      <div class="row mt"><button class="btn sm">+ Add walk-in (new)</button><span class="muted" style="margin-left:auto">⚙ Offline-ready · syncs on reconnect</span></div>
+    </div></div></div></div>
+  </div>
+  <div class="frame">
+    <div class="flabel">Front-desk · Add walk-in OR correct</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">front-desk · entry</span></div>
+    <div class="pad">
+      <div class="row" style="gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:6px">
+        <div style="flex:1;text-align:center;padding:9px;background:var(--brand);color:#fff;font-weight:600;font-size:12px">➕ New walk-in</div>
+        <div style="flex:1;text-align:center;padding:9px;color:#475569;font-size:12px">✎ Correct existing</div>
+      </div>
+      <p class="muted" style="margin:0 0 10px">Pick a tab: <b>New walk-in</b> = create a fresh token · <b>Correct existing</b> = find a patient &amp; edit.</p>
+      <div class="field"><label>Patient name</label><div class="input">Ramesh K</div></div>
+      <div class="field"><label>Phone</label><div class="input">+91 90••••</div></div>
+      <div class="field"><label>Doctor</label><div class="input">Dr. Nair (Ortho) ▾</div></div>
+      <button class="btn">Issue token</button>
+      <p class="muted mt">“Correct existing” tab → 🔎 search by phone → pick patient → edit any field (audited).</p>
+    </div></div></div>
+  </div>
+</div>
+
+<!-- ============ DOCTOR ============ -->
+<div class="section"><h2><span class="persona-tag">Doctor · Dr. Nair</span> Live queue + availability</h2><p class="who">Sees only their own day. Drives the live ETA by marking patients done; sets their own slots/leave.</p></div>
+<div class="grid">
+  <div class="frame">
+    <div class="flabel">Live queue console</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">doctor · morning</span></div>
+    <div class="pad">
+      <div class="li now"><span><b>A‑12 Suresh</b> · now</span><button class="btn sm">Mark done ✓</button></div>
+      <div class="li"><span>A‑13 Fathima</span><span class="row" style="gap:6px"><button class="btn ghost sm">Skip</button><span class="muted">next</span></span></div>
+      <div class="li emg"><span>⚡ Emergency · Child</span><button class="btn amber sm">Accept</button></div>
+      <div class="li"><span>A‑11 Latha · <span class="pill a">skipped</span></span><span class="row" style="gap:6px"><button class="btn ghost sm">Recall</button><button class="btn ghost sm">Cancel</button></span></div>
+      <div class="row mt"><button class="btn ghost sm">Pause</button><button class="btn ghost sm">⏱ Running late · +15m</button><span class="muted" style="margin-left:auto">Skipped → status saved for easy recall/cancel</span></div>
+      <p class="muted">Delay recomputes everyone's ETA &amp; notifies waiting patients <span class="cfg">⚙ notify text</span></p>
+    </div></div></div>
+  </div>
+  <div class="frame">
+    <div class="flabel">My availability <span style="font-weight:400;color:var(--cfg)">⚙ self-serve</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">doctor · schedule</span></div>
+    <div class="pad">
+      <p class="muted" style="margin:0 0 6px">Add your OWN time blocks — not fixed presets</p>
+      <div class="li"><span><b>Morning</b> 9:30–13:00 · 2/30m</span><button class="btn ghost sm">Edit</button></div>
+      <div class="li"><span><b>Evening</b> 17:00–20:00 · 3/30m</span><button class="btn ghost sm">Edit</button></div>
+      <div class="li"><span><b>Sat camp</b> 8:00–10:00 · 4/30m</span><button class="btn ghost sm">Edit</button></div>
+      <div class="row mt"><button class="btn sm" style="flex:1">+ Add timeline</button><button class="btn ghost sm" style="flex:1">+ Block leave</button></div>
+      <p class="muted mt">Each block: custom hours, capacity, repeat rule, breaks <span class="cfg">⚙</span></p>
+    </div></div></div>
+  </div>
+</div>
+
+<!-- ============ ONBOARDING JOURNEY (merged) ============ -->
+<div class="section"><h2><span class="persona-tag">Clinic onboarding</span> Step-by-step self-service setup (also the user manual)</h2><p class="who">Lands at tovaitech.in/appointments/onboard · every click is a real screen · status auto-records. MANDATORY = needed to go live · OPTIONAL = later.</p></div>
+<div class="grid">
+  <div class="frame"><div class="flabel">0 · Landing</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">tovaitech.in/appointments/onboard</span></div><div class="pad">
+    <h3>Set up your clinic on tovaitech</h3><h4>Live in ~15 min · no card</h4><button class="btn">Get started</button></div></div></div></div>
+  <div class="frame"><div class="flabel">0.1 · Create account <span class="pill r">MANDATORY</span></div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard/account</span></div><div class="pad">
+    <div class="field"><label>Clinic name</label><div class="input">Green Cross Clinic</div></div>
+    <div class="field"><label>Your name · mobile + OTP</label><div class="input">Dr. Menon · +91 98•••• · 4291 ✓</div></div>
+    <button class="btn">Create &amp; continue</button>
+    <div class="banner mt" style="background:var(--ok-soft);color:#14532d;border:1px solid #bfe6cf">Result: account created → setup checklist.</div></div></div></div></div>
+  <div class="frame"><div class="flabel">0.2 · Setup checklist (auto-status)</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard</span></div><div class="pad">
+    <div class="kv"><span><span class="pill r">M</span> ① Connect WhatsApp</span><button class="btn ghost sm">Start</button></div>
+    <div class="kv"><span><span class="pill n">O</span> ② Pick preset</span><span class="pill n">to do</span></div>
+    <div class="kv"><span><span class="pill r">M</span> ③ Doctors &amp; slots</span><span class="pill n">to do</span></div>
+    <div class="kv"><span><span class="pill n">O</span> ④ Payment gateway</span><span class="pill n">to do</span></div>
+    <div class="kv"><span><span class="pill n">O</span> ⑤ Embed / share</span><span class="pill n">to do</span></div>
+    <p class="muted mt">Ticks each item automatically as you finish.</p></div></div></div></div>
+
+  <div class="frame"><div class="flabel">1 · Connect WhatsApp <span class="pill r">MANDATORY</span></div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard/whatsapp</span></div><div class="pad">
+    <h3>Connect your clinic's WhatsApp</h3><h4>Patients message THIS number</h4>
+    <button class="btn">Connect WhatsApp</button><p class="muted mt">Opens Meta's secure popup.</p></div></div></div></div>
+  <div class="frame"><div class="flabel">1.2 · Meta popup (login + WABA + OTP)</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">facebook.com · popup</span></div><div class="pad">
+    <button class="btn accent">Log in to Meta Business</button>
+    <div class="field mt"><label>WABA · number</label><div class="input">Green Cross · +91 484••••</div></div>
+    <div class="field"><label>OTP to the number</label><div class="input">3 1 9 0</div></div>
+    <button class="btn">Verify &amp; grant access</button></div></div></div></div>
+  <div class="frame"><div class="flabel">1.3 · App auto-finishes → READY</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard/whatsapp</span></div><div class="pad">
+    <div class="kv"><span>Callback received · number registered</span><span class="pill g">✓</span></div>
+    <div class="kv"><span>Webhooks subscribed</span><span class="pill g">✓</span></div>
+    <div class="kv"><span>Ready to send</span><span class="pill g">READY</span></div>
+    <div class="kv"><span>Verification</span><span class="pill a">pending (async)</span></div>
+    <div class="banner mt" style="background:var(--ok-soft);color:#14532d;border:1px solid #bfe6cf">① auto-ticks · we keep monitoring quality/verification.</div></div></div></div></div>
+
+  <div class="frame"><div class="flabel">2 · Pick preset (preview) <span class="pill n">OPTIONAL</span></div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard/preset</span></div><div class="pad">
+    <div class="li"><span><b>Multi-specialty</b><br><span class="muted">depts · multi-doctor · 2/30m · voice · reminders</span></span><span class="pill g">pick</span></div>
+    <div class="li"><span><b>Single doctor</b><br><span class="muted">1 doctor · simple queue</span></span><button class="btn ghost sm">pick</button></div>
+    <div class="li"><span><b>Dental</b><br><span class="muted">longer slots · recall</span></span><button class="btn ghost sm">pick</button></div>
+    <button class="btn mt">Apply preset</button></div></div></div></div>
+  <div class="frame"><div class="flabel">3 · Doctors &amp; slots <span class="pill r">MANDATORY</span></div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard/doctors</span></div><div class="pad">
+    <div class="field"><label>Doctor · specialty · fee · languages</label><div class="input">Dr. Nair · Ortho · ₹300 · EN, ML</div></div>
+    <div class="li"><span><b>Morning</b> 9:30–13:00 · 2/30m</span><button class="btn ghost sm">Edit</button></div>
+    <button class="btn">+ Add timeline</button>
+    <div class="banner mt" style="background:var(--ok-soft);color:#14532d;border:1px solid #bfe6cf">Bookable doctor exists → ③ ticks.</div></div></div></div></div>
+  <div class="frame"><div class="flabel">4 · Payment gateway <span class="pill n">OPTIONAL</span></div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard/payments</span></div><div class="pad">
+    <div class="row wrap" style="gap:6px"><span class="chip on">PhonePe</span><span class="chip">Razorpay</span><span class="chip">Paytm</span><span class="chip">Pay-at-clinic only</span></div>
+    <button class="btn mt">Connect PhonePe (your account)</button>
+    <div class="kv mt"><span>Connected · KYC</span><span class="pill a">pending</span></div>
+    <div class="kv"><span>Online fee</span><b>₹300 ▾</b></div>
+    <p class="muted mt">Prepay turns on automatically once KYC done · pay-at-clinic till then.</p></div></div></div></div>
+  <div class="frame"><div class="flabel">5 · Embed &amp; share <span class="pill n">OPTIONAL</span></div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard/share</span></div><div class="pad">
+    <div class="codebox">&lt;tovai-booking clinic="greencross-kochi"&gt;&lt;/tovai-booking&gt;</div>
+    <p class="muted mt">On your site the URL stays greencrosskochi.com (no redirect).</p>
+    <div class="row mt"><button class="btn ghost sm" style="flex:1">Copy hosted link</button><button class="btn ghost sm" style="flex:1">Download QR</button></div>
+    <button class="btn mt">Verify it's live</button></div></div></div></div>
+  <div class="frame"><div class="flabel">✓ · Go-live readiness (auto)</div><div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">/onboard</span></div><div class="pad">
+    <div class="kv"><span><span class="pill r">M</span> WhatsApp · Doctor+slots · Name+consent</span><span class="pill g">✓✓✓</span></div>
+    <div class="kv"><span><span class="pill n">O</span> Preset · Embed</span><span class="pill g">✓</span></div>
+    <div class="kv"><span><span class="pill n">O</span> Payment KYC</span><span class="pill a">pending</span></div>
+    <div class="kv"><span>Go-live</span><b style="color:var(--ok)">READY (mandatory met)</b></div>
+    <button class="btn dark mt sm">Provider override / force go-live</button></div></div></div></div>
+</div>
+
+<!-- ============ CLINIC ADMIN — CONFIG ============ -->
+<div class="section"><h2><span class="persona-tag">Clinic admin · Dr. Menon</span> Configure everything (no hardcoding)</h2><p class="who">Self-serve setup &amp; control: branding, slots, queue rules, payments, refunds, languages, templates, AI, integrations.</p></div>
+<div class="grid">
+
+  <div class="frame">
+    <div class="flabel">Onboarding wizard</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">tovaitech.in/onboard</span></div>
+    <div class="pad">
+      <div class="kv"><span>① Connect WhatsApp</span><span class="pill g">done</span></div>
+      <p class="muted" style="margin:2px 0 6px;font-size:11px">enter number → Meta login → create/select WABA → OTP-verify → grant app → live</p>
+      <div class="kv"><span>② Pick preset (preview contents)</span><span class="pill g">done</span></div>
+      <div class="kv"><span>③ Add doctors &amp; slots</span><span class="pill a">in progress</span></div>
+      <div class="kv"><span>④ Connect your payment gateway</span><span class="pill n">pending KYC</span></div>
+      <div class="kv"><span>⑤ Embed / share link</span><span class="pill n">next</span></div>
+      <p class="muted mt">Live in minutes on a limited tier; payment enabled after the clinic's gateway KYC.</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Onboarding readiness — auto-validated &amp; monitored</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">onboard · readiness</span></div>
+    <div class="pad">
+      <div class="kv"><span><span class="pill r">MANDATORY</span> ≥1 doctor with slots</span><span class="pill g">✓</span></div>
+      <div class="kv"><span><span class="pill r">MANDATORY</span> a booking channel (WhatsApp READY <i>or</i> hosted page)</span><span class="pill g">✓</span></div>
+      <div class="kv"><span><span class="pill r">MANDATORY</span> clinic name + consent/privacy</span><span class="pill g">✓</span></div>
+      <div class="kv"><span><span class="pill n">OPTIONAL</span> WhatsApp business verification</span><span class="pill a">pending · later</span></div>
+      <div class="kv"><span><span class="pill n">OPTIONAL</span> payment gateway + KYC (pay-at-clinic till then)</span><span class="pill a">later</span></div>
+      <div class="kv"><span><span class="pill n">OPTIONAL</span> voice/Bhashini · embed · custom domain · branding</span><span class="pill n">later</span></div>
+      <div class="kv"><span>Go-live</span><b style="color:var(--ok)">READY — all MANDATORY met</b></div>
+      <div class="row mt"><button class="btn dark sm" style="flex:1">Provider override / force go-live</button></div>
+      <p class="muted mt">Clinic goes live once MANDATORY checks pass; OPTIONAL items follow later. Provider (tovaitech) can OVERRIDE/waive any check to enable a clinic — audited, with reason &amp; a reminder to complete.</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Branding &amp; theme <span class="cfg">⚙</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · branding</span></div>
+    <div class="pad">
+      <div class="field"><label>Clinic name</label><div class="input">Green Cross Clinic</div></div>
+      <div class="kv"><span>Primary colour</span><span class="row" style="gap:6px"><span class="swatch" style="background:#0e7c66"></span><span class="swatch" style="background:#2563eb"></span><span class="swatch" style="background:#7c3aed"></span></span></div>
+      <div class="kv"><span>Logo</span><button class="btn ghost sm">Upload</button></div>
+      <div class="kv"><span>English labels</span><b>Always on</b> <span class="muted">(locked — every label)</span></div>
+      <div class="kv"><span>Also show Malayalam (in addition)</span><span class="toggle"></span></div>
+      <p class="muted" style="margin:6px 0 0">When on, labels show English + Malayalam together (bilingual). Never Malayalam-only.</p>
+      <div class="kv"><span>Dark mode for display board</span><span class="toggle"></span></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Slots, sessions &amp; cut-off <span class="cfg">⚙</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · scheduling</span></div>
+    <div class="pad">
+      <div class="kv"><span>Slot length</span><b>30 min ▾</b></div>
+      <div class="kv"><span>Patients per slot</span><b>2 ▾</b></div>
+      <div class="kv"><span>Cut-off · Morning session</span><b>11:30 AM</b></div>
+      <div class="kv"><span>Cut-off · Evening session</span><b>7:00 PM</b></div>
+      <div class="kv"><span>Accept new bookings</span><span class="toggle"></span></div>
+      <div class="kv"><span>Show queue count after cut-off</span><span class="toggle"></span></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Queue &amp; emergency rules <span class="cfg">⚙ per dept</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · queue</span></div>
+    <div class="pad">
+      <div class="kv"><span>Walk-in : online mix per slot</span><b>1 : 1 ▾</b></div>
+      <div class="kv"><span>Reserved emergency slots / session</span><b>2 ▾</b></div>
+      <div class="kv"><span>Wild-entry auto-shift</span><span class="toggle"></span></div>
+      <div class="kv"><span>No-show recall window</span><b>5 min ▾</b></div>
+      <div class="kv"><span>Waitlist auto-fill on cancel</span><span class="toggle"></span></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Payments &amp; refunds <span class="cfg">⚙</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · payments</span></div>
+    <div class="pad">
+      <div class="kv"><span>Gateway (bring your own)</span><b>PhonePe ✓</b></div>
+      <div class="kv"><span>Online booking fee</span><b>₹300 ▾</b></div>
+      <div class="kv"><span>Online prepay required</span><span class="toggle"></span></div>
+      <div class="kv"><span>Refund on patient cancel</span><b>Full ▾</b></div>
+      <div class="kv"><span>Refund on no-show</span><b>None ▾</b></div>
+      <div class="kv"><span>Refund window</span><b>2 h before ▾</b></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Notification templates <span class="cfg">⚙ per language</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · messages</span></div>
+    <div class="pad">
+      <div class="kv"><span>Channel</span><b>WhatsApp only</b></div>
+      <div class="kv"><span>Confirmation</span><span class="pill g">approved</span></div>
+      <div class="kv"><span>Reminder (24h / 2h)</span><b>2h ▾</b></div>
+      <div class="kv"><span>"Your turn is next"</span><span class="toggle"></span></div>
+      <div class="kv"><span>Delay alert</span><span class="toggle"></span></div>
+      <div class="kv"><span>Language</span><b>ML + EN ▾</b></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">AI assistant (uses platform models) <span class="cfg">⚙ clinic</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · AI</span></div>
+    <div class="pad">
+      <div class="kv"><span>AI booking assistant</span><span class="toggle"></span></div>
+      <div class="kv"><span>Voice (Malayalam ASR/TTS)</span><span class="toggle"></span></div>
+      <div class="kv"><span>Guardrail: confirm before booking</span><span class="toggle"></span> <span class="muted">(locked)</span></div>
+      <div class="kv"><span>Monthly AI budget cap</span><b>₹ set ▾</b></div>
+      <p class="muted mt">Models (LLM/ASR/TTS) are registered &amp; managed by tovaitech (platform) — the clinic only turns the assistant on/off &amp; sets language/budget.</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Integrations &amp; embed</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · integrations</span></div>
+    <div class="pad">
+      <div class="kv"><span>Hosted page</span><b style="font-size:11px">tovaitech.in/appointments/greencross</b></div>
+      <p class="muted" style="margin:8px 0 4px">Embed on your own site (URL stays YOURS — no redirect):</p>
+      <div class="codebox">&lt;tovai-booking clinic="greencross-kochi"&gt;&lt;/tovai-booking&gt;</div>
+      <p class="muted" style="margin:6px 0 0;font-size:11px">Embed → address bar shows greencrosskochi.com · Hosted → tovaitech.in · Custom domain → book.greencrosskochi.com</p>
+      <div class="kv mt"><span>CRM webhook URL</span><span class="pill g">set</span></div>
+      <div class="kv"><span>Read API key</span><button class="btn ghost sm">Generate</button></div>
+      <div class="kv"><span>Daily CSV export → email</span><span class="toggle"></span></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Staff login (required for all staff screens)</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">tovaitech.in/login</span></div>
+    <div class="pad">
+      <h3>Sign in</h3><h4>Clinic staff &amp; doctors</h4>
+      <button class="btn">🔑 Sign in with passkey</button>
+      <button class="btn accent mt">Continue with Google</button>
+      <div class="field mt"><label>or email + password</label><div class="input">suma@greencross.in</div></div>
+      <div class="input">••••••••</div>
+      <div class="row" style="justify-content:space-between;margin-top:6px"><span></span><a class="muted" style="color:var(--accent)">Forgot password?</a></div>
+      <p class="muted mt">MFA/passkey enforced for admin · session times out · per-clinic (no cross-tenant). Doctors/staff can self-reset password after first login.</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Staff &amp; roles — invite / change / REVOKE <span class="cfg">⚙</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">settings · staff</span></div>
+    <div class="pad">
+      <div class="li"><span><b>Dr. Menon</b> · <span class="muted">Admin</span></span><span class="row" style="gap:6px"><span class="pill g">passkey</span><button class="btn ghost sm">Revoke</button></span></div>
+      <div class="li"><span><b>Dr. Raj</b> · <span class="muted">Admin</span></span><span class="row" style="gap:6px"><span class="pill">active</span><button class="btn ghost sm">Revoke</button></span></div>
+      <div class="li"><span><b>Suma</b> · <span class="muted">Front-desk ▾</span></span><span class="row" style="gap:6px"><span class="pill">active</span><button class="btn ghost sm">Revoke</button></span></div>
+      <div class="li"><span><b>Dr. Nair</b> · <span class="muted">Doctor ▾</span></span><span class="row" style="gap:6px"><span class="pill">active</span><button class="btn ghost sm">Revoke</button></span></div>
+      <div class="li"><span><b>Anu (left)</b> · <span class="muted">Front-desk</span></span><span class="pill r">revoked</span></div>
+      <div class="field mt"><label>Invite new user — choose role</label><div class="input">Admin ▾ &nbsp;|&nbsp; Doctor · Front-desk · Triage</div></div>
+      <div class="row"><button class="btn sm" style="flex:1">+ Send invite (email)</button><button class="btn ghost sm" style="flex:1">Kiosk device PIN</button></div>
+      <p class="muted mt">Multiple <b>Admins</b> allowed. Invite by email → pick role (Admin/Doctor/Front-desk/Triage) → they set passkey/password &amp; can self-reset later. <b>Revoke</b> = instant access loss (sessions killed), audited. Change role anytime.</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Analytics</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">dashboard</span></div>
+    <div class="pad">
+      <div class="row" style="gap:8px"><div class="stat"><b>12%</b><span>no-show ▼</span></div><div class="stat"><b>28m</b><span>avg wait</span></div><div class="stat"><b>₹1.2L</b><span>recovered</span></div></div>
+      <div class="row mt" style="gap:8px"><div class="stat"><b>86%</b><span>doctor utilisation</span></div><div class="stat"><b>340</b><span>bookings/mo</span></div></div>
+      <p class="muted mt">Per-clinic; data isolated. Reports run off a read replica.</p>
+    </div></div></div>
+  </div>
+
+</div>
+
+<!-- ============ PLATFORM OPERATOR ============ -->
+<div class="section"><h2><span class="persona-tag">Platform operator · tovaitech</span> Superadmin (you)</h2><p class="who">Run many tenants safely: health, billing/usage, global AI registry, audited impersonation.</p></div>
+<div class="grid">
+  <div class="frame wide">
+    <div class="flabel">Tenants &amp; health</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">superadmin · tenants</span></div>
+    <div class="side"><div class="nav"><div class="ni on">Tenants</div><div class="ni">Billing</div><div class="ni">AI registry</div><div class="ni">Flags</div><div class="ni">Status / SLO</div></div>
+    <div class="pad" style="flex:1">
+      <div class="li"><span><b>Green Cross · Kochi</b><br><span class="muted">shared pool · ML+EN</span></span><span class="row" style="gap:6px"><span class="pill g">healthy</span><button class="btn ghost sm">Impersonate</button></span></div>
+      <div class="li"><span><b>City Dental · Kollam</b><br><span class="muted">shared pool</span></span><span class="row" style="gap:6px"><span class="pill g">healthy</span><button class="btn ghost sm">Impersonate</button></span></div>
+      <div class="li"><span><b>Sunrise Hospital</b><br><span class="muted">dedicated instance</span></span><span class="row" style="gap:6px"><span class="pill a">high load</span><button class="btn ghost sm">Impersonate</button></span></div>
+      <p class="muted mt">Impersonation is time-boxed &amp; audited. Each tenant's data fully isolated.</p>
+    </div></div></div></div>
+  </div>
+  <div class="frame">
+    <div class="flabel">Billing &amp; usage</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">superadmin · billing</span></div>
+    <div class="pad">
+      <div class="kv"><span>Green Cross — plan</span><b>Growth (flat) ▾</b></div>
+      <div class="kv"><span>City Dental — plan</span><b>Usage-based ▾</b></div>
+      <div class="kv"><span>Bookings metered (mo)</span><b>1,240</b></div>
+      <p class="muted mt">Both flat &amp; usage models supported · metering from day 1.</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Plans &amp; pricing (superadmin sets price)</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">superadmin · plans</span></div>
+    <div class="pad">
+      <div class="li"><span><b>Starter</b><br><span class="muted">flat</span></span><span class="row" style="gap:6px"><b>₹1,499/mo</b><button class="btn ghost sm">Edit price</button></span></div>
+      <div class="li"><span><b>Growth</b><br><span class="muted">flat</span></span><span class="row" style="gap:6px"><b>₹2,999/mo</b><button class="btn ghost sm">Edit price</button></span></div>
+      <div class="li"><span><b>Usage</b><br><span class="muted">per booking</span></span><span class="row" style="gap:6px"><b>₹6/booking</b><button class="btn ghost sm">Edit price</button></span></div>
+      <button class="btn sm mt">+ New plan</button>
+      <p class="muted mt">Plan catalog &amp; prices controlled by you (platform).</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Offer codes &amp; GST</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">superadmin · offers</span></div>
+    <div class="pad">
+      <div class="li"><span><b>LAUNCH50</b><br><span class="muted">50% · 3 mo · till 31 Jul</span></span><span class="pill g">active</span></div>
+      <div class="li"><span><b>KERALA20</b><br><span class="muted">20% · first invoice</span></span><span class="pill a">draft</span></div>
+      <button class="btn ghost sm">+ Create offer code</button>
+      <div class="kv mt"><span>GST rate</span><b>18% ▾</b></div>
+      <div class="kv"><span>GST-compliant invoices</span><span class="toggle"></span></div>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">Profit — AI/WhatsApp cost vs revenue</div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">superadmin · margins</span></div>
+    <div class="pad">
+      <div class="li"><span><b>Green Cross</b></span><span class="muted">rev ₹2,999 · cost ₹520 → <b style="color:var(--ok)">₹2,479</b></span></div>
+      <div class="li"><span><b>City Dental</b></span><span class="muted">rev ₹1,820 · cost ₹410 → <b style="color:var(--ok)">₹1,410</b></span></div>
+      <div class="li"><span><b>Sunrise (dedicated)</b></span><span class="muted">rev ₹9,999 · cost ₹3,100 → <b style="color:var(--ok)">₹6,899</b></span></div>
+      <p class="muted" style="margin:6px 0 2px">Cost itemised by API ↓</p>
+      <div class="row wrap" style="gap:6px"><span class="chip">LLM ₹190</span><span class="chip">Bhashini ₹120</span><span class="chip">Sarvam ₹70</span><span class="chip">WhatsApp ₹110</span><span class="chip">Telephony ₹20</span><span class="chip">Gateway fee ₹10</span></div>
+      <div class="row mt"><div class="stat"><b>₹0.9L</b><span>revenue/mo</span></div><div class="stat"><b>₹0.2L</b><span>all-API cost</span></div><div class="stat"><b>~78%</b><span>margin</span></div></div>
+      <p class="muted mt">EVERY API metered per clinic — LLM, Bhashini, Sarvam (ASR/TTS), WhatsApp, telephony, gateway fees — vs what they pay you.</p>
+    </div></div></div>
+  </div>
+
+  <div class="frame">
+    <div class="flabel">AI Model Registry (platform-owned) <span class="cfg">⚙ tovaitech</span></div>
+    <div class="pad"><div class="win"><div class="winbar"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span><span class="winurl">superadmin · AI registry</span></div>
+    <div class="pad">
+      <div class="li"><span><b>Booking LLM</b><br><span class="muted">GPT-4o-mini · key set</span></span><span class="pill g">active</span></div>
+      <div class="li"><span><b>Fallback LLM</b><br><span class="muted">Gemini Flash</span></span><span class="pill n">fallback</span></div>
+      <div class="li"><span><b>Malayalam ASR/TTS</b><br><span class="muted">Sarvam · Bhashini (eval)</span></span><span class="pill g">active</span></div>
+      <button class="btn ghost sm">+ Register provider / key</button>
+      <p class="muted mt">We register &amp; configure models first; clinics then just consume them (on/off). Keys live in secrets.</p>
+    </div></div></div>
+  </div>
+</div>
+
+<div class="footer">
+  Modern (2026) low-fidelity mockups for direction. Patient/kiosk = mobile-first &amp; accessible (large targets, voice, Malayalam); staff/admin = dashboards. <b style="color:var(--cfg)">⚙</b> marks elements the clinic admin configures — branding, languages, slots, queue rules, fees, refunds, templates, AI models, integrations — so nothing user-facing is hardcoded. Final visuals follow once the UI↔API↔DB contract is locked.
+</div>
+<script>
+(function(){
+  var cur="General";
+  document.querySelectorAll('.section, .grid').forEach(function(el){
+    if(el.classList.contains('section')){
+      var h=el.querySelector('h2');
+      if(h){ var t=h.querySelector('.persona-tag'); cur = t? t.textContent.trim() : h.textContent.trim(); }
+    } else {
+      el.querySelectorAll('.frame > .flabel').forEach(function(fl){
+        if(fl.querySelector('.mo
