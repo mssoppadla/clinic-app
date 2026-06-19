@@ -69,7 +69,35 @@ def test_recreate_active_user_still_conflicts(client):
     h = {"Authorization": f"Bearer {_login(client, 'admin4@c.com', 'pw12345678')['access_token']}"}
     client.post("/users", headers=h, json={"email": "dup@c.com", "role": "doctor"})
     r = client.post("/users", headers=h, json={"email": "dup@c.com", "role": "doctor"})
-    assert r.status_code == 409 and r.json()["error"]["code"] == "email_taken"
+    assert r.status_code == 409 and r.json()["error"]["code"] == "identifier_taken"
+
+
+def test_username_only_user_login(client, superadmin_headers):
+    r = client.post("/users", headers=superadmin_headers,
+                    json={"username": "drmenon", "role": "doctor", "tenant_id": "t-u", "phone": "+919800000010"})
+    assert r.status_code == 201, r.text
+    assert r.json()["email"] is None and r.json()["username"] == "drmenon"
+    login = _login(client, "drmenon", r.json()["temp_password"])   # login by username
+    assert login.get("access_token") and login["must_reset_password"] is True
+    assert login["user"]["roles"][0]["role"] == "doctor"
+
+
+def test_create_requires_email_or_username(client, superadmin_headers):
+    r = client.post("/users", headers=superadmin_headers, json={"role": "doctor", "tenant_id": "t-u2"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "identifier_required"
+
+
+def test_forgot_reset_by_username(client, superadmin_headers):
+    from app.integrations.whatsapp import SENT_STUB
+    client.post("/users", headers=superadmin_headers,
+                json={"username": "nurse1", "role": "front_desk", "tenant_id": "t-u3", "phone": "+919800000011"})
+    SENT_STUB.clear()
+    assert client.post("/auth/forgot", json={"identifier": "nurse1"}).status_code == 200
+    assert SENT_STUB
+    code = SENT_STUB[-1]["params"]["code"]
+    assert client.post("/auth/reset",
+                       json={"identifier": "nurse1", "otp": code, "new_password": "newpass999"}).status_code == 200
+    assert _login(client, "nurse1", "newpass999")["must_reset_password"] is False
 
 
 def test_change_password_clears_reset_flag(client):

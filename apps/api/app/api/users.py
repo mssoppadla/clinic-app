@@ -4,8 +4,12 @@ first login); they can also reset via WhatsApp OTP (see auth.forgot/reset).
 """
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+
+_USERNAME_RE = re.compile(r"[a-z0-9._-]{3,80}")
 
 from ..core.db import system_session
 from ..core.errors import AppError
@@ -35,15 +39,16 @@ def _admin_tenant_ids(user: dict) -> set[str]:
 def _user_view(db, u: User) -> dict:
     roles = [{"role": r.role, "tenant_id": r.tenant_id}
              for r in db.query(UserRole).filter(UserRole.user_id == u.id).all()]
-    return {"id": u.id, "email": u.email, "phone": u.phone, "status": u.status,
-            "must_reset_password": u.must_reset_password, "roles": roles}
+    return {"id": u.id, "email": u.email, "username": u.username, "phone": u.phone,
+            "status": u.status, "must_reset_password": u.must_reset_password, "roles": roles}
 
 
 class CreateUserIn(BaseModel):
-    email: str
+    email: str | None = None
+    username: str | None = None      # alternate login id for clinics without an email
     phone: str | None = None
     role: str = Field(pattern="^(clinic_admin|doctor|front_desk|triage|superadmin)$")
-    tenant_id: str | None = None   # superadmin supplies; clinic_admin uses their own
+    tenant_id: str | None = None     # superadmin supplies; clinic_admin uses their own
 
 
 def _resolve_target_tenant(caller: dict, role: str, tenant_id: str | None) -> str | None:
@@ -68,22 +73,36 @@ def _resolve_target_tenant(caller: dict, role: str, tenant_id: str | None) -> st
 
 @router.post("", status_code=201)
 def create_user(body: CreateUserIn, caller: dict = Depends(require_role("superadmin", "clinic_admin"))):
-    email = (body.email or "").strip().lower()
-    if "@" not in email or "." not in email:
+    email = ((body.email or "").strip().lower()) or None
+    username = ((body.username or "").strip().lower()) or None
+    if not email and not username:
+        raise AppError("identifier_required", "Provide an email or a username.", status=422)
+    if email and ("@" not in email or "." not in email):
         raise AppError("invalid_email", "A valid email is required.", status=422)
+    if username and not _USERNAME_RE.fullmatch(username):
+        raise AppError("invalid_username", "Username must be 3–80 chars: letters, numbers, . _ -",
+                       status=422)
     tenant_id = _resolve_target_tenant(caller, body.role, body.tenant_id)
     temp = generate_temp_password()
     with system_session() as db:
-        existing = db.query(User).filter(User.email == email).first()
+        existing = None
+        if email:
+            existing = db.query(User).filter(User.email == email).first()
+        if existing is None and username:
+            existing = db.query(User).filter(User.username == username).first()
         if existing is not None and existing.status != "revoked":
-            raise AppError("email_taken", "An active user with this email already exists.", status=409)
+            raise AppError("identifier_taken", "An active user with this email/username already exists.",
+                           status=409)
         if existing is not None:
-            # Re-creating a previously revoked email reactivates + updates that account
-            # (fresh temp password, force-reset) rather than failing.
+            # Re-creating a revoked email/username reactivates + updates that account.
             _assert_can_manage(db, caller, existing)
             existing.status = "active"
             existing.must_reset_password = True
             existing.password_hash = hash_password(temp)
+            if email:
+                existing.email = email
+            if username:
+                existing.username = username
             if body.phone is not None:
                 existing.phone = body.phone or None
             db.query(UserRole).filter(UserRole.user_id == existing.id,
@@ -91,8 +110,8 @@ def create_user(body: CreateUserIn, caller: dict = Depends(require_role("superad
             db.add(UserRole(user_id=existing.id, tenant_id=tenant_id, role=body.role))
             db.flush()
             return {**_user_view(db, existing), "temp_password": temp, "reactivated": True}
-        u = User(email=email, phone=(body.phone or None), password_hash=hash_password(temp),
-                 must_reset_password=True, status="active")
+        u = User(email=email, username=username, phone=(body.phone or None),
+                 password_hash=hash_password(temp), must_reset_password=True, status="active")
         db.add(u)
         db.flush()
         db.add(UserRole(user_id=u.id, tenant_id=tenant_id, role=body.role))

@@ -34,7 +34,7 @@
 
   function loginView() {
     box('<h3 style="margin:0 0 2px">Staff sign in</h3><p class="hint">Use your tovaitech staff account.</p>'
-      + errLine() + field("ovEmail", "Email", "email") + field("ovPass", "Password", "password")
+      + errLine() + field("ovEmail", "Email or username", "text") + field("ovPass", "Password", "password")
       + '<button class="btn" id="ovBtn" type="button">Sign in</button>'
       + '<p class="foot"><a href="#" id="ovForgot">Forgot password?</a></p>');
     document.getElementById("ovBtn").onclick = doLogin;
@@ -42,9 +42,9 @@
     document.getElementById("ovPass").addEventListener("keydown", function (e) { if (e.key === "Enter") doLogin(); });
   }
   async function doLogin() {
-    var email = document.getElementById("ovEmail").value.trim();
+    var ident = document.getElementById("ovEmail").value.trim();
     var pass = document.getElementById("ovPass").value;
-    var r = await postJSON("/auth/login", { email: email, password: pass });
+    var r = await postJSON("/auth/login", { identifier: ident, password: pass });
     if (!r.ok) { showErr(msg(r.data, "Sign in failed")); return; }
     sessionStorage.setItem(KEY, r.data.access_token);
     if (r.data.must_reset_password) { mustResetView(pass); } else { location.reload(); }
@@ -66,18 +66,18 @@
 
   function forgotView() {
     box('<h3 style="margin:0 0 2px">Reset password</h3><p class="hint">We\'ll send a code to your WhatsApp.</p>'
-      + errLine() + field("ovEmail", "Email", "email")
+      + errLine() + field("ovEmail", "Email or username", "text")
       + '<button class="btn" id="ovBtn" type="button">Send code</button>'
       + '<p class="foot"><a href="#" id="ovBack">Back to sign in</a></p>');
     document.getElementById("ovBack").onclick = function (e) { e.preventDefault(); loginView(); };
     document.getElementById("ovBtn").onclick = async function () {
-      var email = document.getElementById("ovEmail").value.trim();
-      var r = await postJSON("/auth/forgot", { email: email });
+      var ident = document.getElementById("ovEmail").value.trim();
+      var r = await postJSON("/auth/forgot", { identifier: ident });
       if (!r.ok) { showErr(msg(r.data, "Could not send code")); return; }
-      resetView(email);
+      resetView(ident);
     };
   }
-  function resetView(email) {
+  function resetView(ident) {
     box('<h3 style="margin:0 0 2px">Enter reset code</h3><p class="hint">Code sent to the WhatsApp number on file (if the account exists).</p>'
       + errLine() + field("ovOtp", "6-digit code") + field("ovNew", "New password", "password")
       + '<button class="btn" id="ovBtn" type="button">Reset password</button>'
@@ -86,7 +86,7 @@
     document.getElementById("ovBtn").onclick = async function () {
       var otp = document.getElementById("ovOtp").value.trim(), n = document.getElementById("ovNew").value;
       if (n.length < 8) { showErr("Password must be at least 8 characters."); return; }
-      var r = await postJSON("/auth/reset", { email: email, otp: otp, new_password: n });
+      var r = await postJSON("/auth/reset", { identifier: ident, otp: otp, new_password: n });
       if (!r.ok) { showErr(msg(r.data, "Invalid or expired code")); return; }
       loginView(); showErr(""); document.getElementById("ovErr").classList.add("hidden");
     };

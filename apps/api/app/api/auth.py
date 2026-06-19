@@ -38,6 +38,14 @@ def _roles_for(db, user_id: str) -> list[dict]:
     return [{"role": r.role, "tenant_id": r.tenant_id} for r in rows]
 
 
+def _find_by_identifier(db, ident: str):
+    """Look up a user by email OR username (case-insensitive)."""
+    ident = (ident or "").strip().lower()
+    if not ident:
+        return None
+    return db.query(User).filter((User.email == ident) | (User.username == ident)).first()
+
+
 def _login_payload(db, user: User) -> dict:
     roles = _roles_for(db, user.id)
     return {
@@ -50,16 +58,22 @@ def _login_payload(db, user: User) -> dict:
 
 
 class LoginIn(BaseModel):
-    email: str
+    # accept any of these as the identifier (email or username); password required
+    email: str | None = None
+    username: str | None = None
+    identifier: str | None = None
     password: str
+
+    def ident(self) -> str:
+        return self.identifier or self.email or self.username or ""
 
 
 @router.post("/login")
 def login(body: LoginIn):
     with system_session() as db:   # users/user_roles are identity infra (not RLS-scoped)
-        user = db.query(User).filter(User.email == str(body.email).lower()).first()
+        user = _find_by_identifier(db, body.ident())
         if user is None or user.status != "active" or not verify_password(body.password, user.password_hash):
-            raise AppError("invalid_credentials", "Wrong email or password.", status=401)
+            raise AppError("invalid_credentials", "Wrong email/username or password.", status=401)
         return _login_payload(db, user)
 
 
@@ -110,16 +124,20 @@ def change_password(body: ChangePwIn, caller: dict = Depends(get_current_user)):
 
 
 class ForgotIn(BaseModel):
-    email: str
+    email: str | None = None
+    username: str | None = None
+    identifier: str | None = None
+
+    def ident(self) -> str:
+        return self.identifier or self.email or self.username or ""
 
 
 @router.post("/forgot")
 def forgot_password(body: ForgotIn):
     """Send a password-reset OTP to the user's WhatsApp number. Always 200 (no account
-    enumeration)."""
-    email = (body.email or "").strip().lower()
+    enumeration). Accepts email or username."""
     with system_session() as db:
-        u = db.query(User).filter(User.email == email).first()
+        u = _find_by_identifier(db, body.ident())
         if u is not None and u.status == "active" and u.phone:
             code = generate_otp()
             db.add(OtpChallenge(user_id=u.id, destination=u.phone, purpose="password_reset",
@@ -136,18 +154,22 @@ def forgot_password(body: ForgotIn):
 
 
 class ResetIn(BaseModel):
-    email: str
+    email: str | None = None
+    username: str | None = None
+    identifier: str | None = None
     otp: str
     new_password: str
+
+    def ident(self) -> str:
+        return self.identifier or self.email or self.username or ""
 
 
 @router.post("/reset")
 def reset_password(body: ResetIn):
     if len(body.new_password) < 8:
         raise AppError("weak_password", "Password must be at least 8 characters.", status=422)
-    email = (body.email or "").strip().lower()
     with system_session() as db:
-        u = db.query(User).filter(User.email == email).first()
+        u = _find_by_identifier(db, body.ident())
         if u is None:
             raise AppError("invalid_otp", "Invalid or expired code.", status=400)
         ch = (db.query(OtpChallenge)

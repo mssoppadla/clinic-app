@@ -22,13 +22,17 @@
     <div class="cardhead"><h3>Add a team member</h3></div>
     <p class="hint">Creates a login with a one-time temporary password. They’ll be asked to set
       their own password on first sign-in (or reset it via WhatsApp OTP).</p>
+    <p class="hint">Provide an <b>email or a username</b> (either is fine — many clinics have no
+      official email). Phone is used for WhatsApp OTP password reset.</p>
     <div class="grid2">
-      <div class="field"><label>Email <span class="muted">(login)</span></label>
+      <div class="field"><label>Email <span class="muted">(optional)</span></label>
         <input class="input" id="email" type="email" placeholder="person@clinic.in"/></div>
-      <div class="field"><label>WhatsApp phone <span class="muted">(for OTP reset)</span></label>
-        <input class="input" id="phone" inputmode="tel" placeholder="+91 ..."/></div>
+      <div class="field"><label>Username <span class="muted">(optional)</span></label>
+        <input class="input" id="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. drmenon"/></div>
     </div>
     <div class="grid2">
+      <div class="field"><label>WhatsApp phone <span class="muted">(for OTP reset)</span></label>
+        <input class="input" id="phone" inputmode="tel" placeholder="+91 ..."/></div>
       <div class="field"><label>Role</label>
         <select class="select" id="role">
           <option value="doctor">Doctor</option>
@@ -36,9 +40,9 @@
           <option value="triage">Triage</option>
           <option value="clinic_admin">Clinic admin</option>
         </select></div>
-      <div class="field hidden" id="clinicField"><label>Clinic <span class="muted">(platform admin)</span></label>
-        <select class="select" id="tenant_id"><option value="">Select a clinic…</option></select></div>
     </div>
+    <div class="field hidden" id="clinicField"><label>Clinic <span class="muted">(platform admin)</span></label>
+      <select class="select" id="tenant_id"><option value="">Select a clinic…</option></select></div>
     <button class="btn" id="addBtn" type="button">Create user</button>
     <div id="created"></div>
   </section>
@@ -68,11 +72,13 @@ async function load(){
       const roles = (u.roles||[]).map(x=>ROLE_LABEL[x.role]||x.role).join(', ');
       const revoked = u.status==='revoked';
       const r0 = (u.roles||[])[0] || {};
+      const ident = u.email || u.username || '—';
+      const alt = (u.email && u.username) ? ' · '+u.username : '';
       const action = revoked
-        ? `<button class="btn ghost sm" data-react="${u.email}" data-role="${r0.role||'doctor'}" data-tenant="${r0.tenant_id||''}">Reactivate</button>`
+        ? `<button class="btn ghost sm" data-react="${ident}" data-role="${r0.role||'doctor'}" data-tenant="${r0.tenant_id||''}">Reactivate</button>`
         : `<button class="btn ghost sm" data-revoke="${u.id}">Revoke</button>`;
       return `<div class="kv">
-        <span><b>${u.email}</b> <span class="muted">${roles}${u.phone?' · '+u.phone:''}</span>
+        <span><b>${ident}</b> <span class="muted">${roles}${alt}${u.phone?' · '+u.phone:''}</span>
           ${revoked?'<span class="pill r" style="margin-left:6px">revoked</span>':(u.must_reset_password?'<span class="pill a" style="margin-left:6px">pending first login</span>':'')}</span>
         ${action}
       </div>`;
@@ -88,18 +94,20 @@ async function load(){
 
 $('#addBtn').onclick = async ()=>{
   clearError(); $('#created').innerHTML='';
-  const email = $('#email').value.trim();
-  if(!email.includes('@')){ showError('Enter a valid email.'); return; }
-  const body = { email, phone: $('#phone').value.trim()||null, role: $('#role').value };
+  const email = $('#email').value.trim(), username = $('#username').value.trim();
+  if(!email && !username){ showError('Enter an email or a username.'); return; }
+  const body = { phone: $('#phone').value.trim()||null, role: $('#role').value };
+  if(email) body.email = email;
+  if(username) body.username = username;
   const tid = $('#tenant_id').value.trim(); if(tid) body.tenant_id = tid;
   $('#addBtn').disabled = true;
   try{
     const r = await authFetch(`${API}/users`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     const d = await r.json();
     if(!r.ok){ showError((d.error&&d.error.message)||'Could not create user'); return; }
-    $('#created').innerHTML = `<div class="result ok" style="margin-top:10px">Created <b>${d.email}</b>. Temporary password (share securely, shown once):
+    $('#created').innerHTML = `<div class="result ok" style="margin-top:10px">Created <b>${d.email||d.username}</b>. Temporary password (share securely, shown once):
       <div class="snippet" style="margin-top:6px">${d.temp_password}</div></div>`;
-    $('#email').value=''; $('#phone').value='';
+    $('#email').value=''; $('#username').value=''; $('#phone').value='';
     load();
   }catch(e){ showError('Network error.'); }
   finally{ $('#addBtn').disabled = false; }
