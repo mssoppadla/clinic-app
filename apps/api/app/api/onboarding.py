@@ -21,7 +21,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from ..core.config import get_settings
-from ..core.db import session_scope
+from ..core.db import system_session
 from ..core.errors import AppError
 from ..core import slug as slugmod
 from ..models import Doctor, Session as ClinicSession, Tenant
@@ -129,7 +129,7 @@ def slug_available(slug: str = ""):
     if not slugmod.is_valid(normalized):
         return {"slug": slug, "normalized": normalized, "available": False,
                 "reason": "reserved" if slugmod.is_reserved(normalized) else "invalid"}
-    with session_scope() as db:
+    with system_session() as db:
         taken = db.query(Tenant).filter(Tenant.slug == normalized).first() is not None
     return {"slug": slug, "normalized": normalized, "available": not taken,
             "reason": "taken" if taken else None}
@@ -148,7 +148,7 @@ def register_clinic(body: RegisterIn):
     languages = body.languages or ["en"]
     if "en" not in languages:           # English always present [A15]
         languages = ["en", *languages]
-    with session_scope() as db:
+    with system_session() as db:
         slug = _unique_slug(db, desired)
         tenant = Tenant(
             slug=slug, name=body.name.strip(), status="trial", go_live=False,
@@ -174,7 +174,7 @@ def register_clinic(body: RegisterIn):
 @router.get("/status")
 def onboarding_status(slug: str):
     """Readiness per step + go-live, for the clinic's own onboarding view."""
-    with session_scope() as db:
+    with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
         if tenant is None:
             raise AppError("tenant_not_found", f"No clinic for slug '{slug}'", status=404)
@@ -185,7 +185,7 @@ def onboarding_status(slug: str):
 @router.get("/pending")
 def pending_clinics():
     """Provider view: clinics awaiting go-live approval (auth deferred to Phase 2)."""
-    with session_scope() as db:
+    with system_session() as db:
         rows = db.query(Tenant).filter(Tenant.go_live.is_(False)).all()
         return {"pending": [
             {"slug": t.slug, "name": t.name, "status": t.status,
@@ -198,7 +198,7 @@ def pending_clinics():
 @router.post("/clinic/{slug}/doctor", status_code=201)
 def add_doctor(slug: str, body: DoctorIn):
     """Add a doctor + a today session (slots) — completes the mandatory readiness step."""
-    with session_scope() as db:
+    with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
         if tenant is None:
             raise AppError("tenant_not_found", f"No clinic for slug '{slug}'", status=404)
@@ -224,7 +224,7 @@ def add_doctor(slug: str, body: DoctorIn):
 @router.get("/appearance")
 def get_appearance(slug: str):
     """Current appearance config for the configurator (not gated on go-live)."""
-    with session_scope() as db:
+    with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
         if tenant is None:
             raise AppError("tenant_not_found", f"No clinic for slug '{slug}'", status=404)
@@ -235,7 +235,7 @@ def get_appearance(slug: str):
 @router.post("/appearance")
 def save_appearance(body: AppearanceIn):
     """Save on-screen appearance (colors, logo, text, header). Merges over existing."""
-    with session_scope() as db:
+    with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == body.slug).first()
         if tenant is None:
             raise AppError("tenant_not_found", f"No clinic for slug '{body.slug}'", status=404)
@@ -248,7 +248,7 @@ def save_appearance(body: AppearanceIn):
 @router.post("/override")
 def approve_go_live(body: OverrideIn):
     """Provider approves / force go-live (audited). Auth deferred to Phase 2."""
-    with session_scope() as db:
+    with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == body.slug).first()
         if tenant is None:
             raise AppError("tenant_not_found", f"No clinic for slug '{body.slug}'", status=404)

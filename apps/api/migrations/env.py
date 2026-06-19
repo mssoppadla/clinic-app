@@ -5,7 +5,12 @@ from sqlalchemy import engine_from_config, pool
 from app.models import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", os.environ.get("APP_DATABASE_URL", "sqlite+pysqlite:///./local.db"))
+# Migrations run DDL, so they use the ADMIN/owner connection (superuser in prod). Falls back
+# to APP_DATABASE_URL for CI/SQLite/single-role setups.
+config.set_main_option(
+    "sqlalchemy.url",
+    os.environ.get("APP_ADMIN_DATABASE_URL") or os.environ.get("APP_DATABASE_URL", "sqlite+pysqlite:///./local.db"),
+)
 if config.config_file_name:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
