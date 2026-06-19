@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Clinic approvals · provider</title>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=7"/>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo">T</div>
+  <div><h1>Clinic approvals</h1><p>Provider · go-live review</p></div>
+</div>
+
+<div class="adminwrap">
+  <div id="error" class="err hidden"></div>
+  <p class="hint">Clinics awaiting go-live. Approving makes the clinic active and its hosted page live for patients.
+    (Auth is enforced in Phase 2 — this page is unlinked for now.)</p>
+  <section class="card">
+    <div class="cardhead"><h3>Pending clinics <span id="count" class="pill n">…</span></h3></div>
+    <div id="list"></div>
+  </section>
+</div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
+const $ = s => document.querySelector(s);
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); };
+const clearError = () => $('#error').classList.add('hidden');
+
+async function load(){
+  clearError();
+  try{
+    const r = await fetch(`${API}/onboarding/pending`);
+    const d = await r.json();
+    const rows = d.pending || [];
+    $('#count').textContent = rows.length;
+    const list = $('#list');
+    if(!rows.length){ list.innerHTML = '<p class="muted" style="padding:10px 0">No clinics waiting for approval.</p>'; return; }
+    list.innerHTML = rows.map(p=>{
+      const ready = p.readiness && p.readiness.mandatory_met;
+      const contact = [p.contact_name, p.contact_email, p.contact_phone].filter(Boolean).join(' · ') || '—';
+      const todo = ((p.readiness && p.readiness.mandatory) || []).filter(m=>!m.done).map(m=>m.label);
+      const todoLine = todo.length ? `<br><span class="muted" style="font-size:.74rem">Pending: ${todo.join(', ')}</span>` : '';
+      const btn = ready
+        ? `<button class="btn sm" type="button" data-slug="${p.slug}" data-ready="1">Approve go-live</button>`
+        : `<button class="btn sm dark" type="button" data-slug="${p.slug}" data-ready="0">Force go-live (override)</button>`;
+      return `<div class="kv" style="align-items:flex-start">
+        <span>
+          <b>${p.name}</b><br>
+          <span class="muted">tovaitech.in/appointments/${p.slug}</span><br>
+          <span class="muted" style="font-size:.74rem">${contact}</span>
+          <span class="pill ${ready?'g':'a'}" style="margin-left:6px">${ready?'mandatory met':'checklist incomplete'}</span>
+          ${todoLine}
+        </span>
+        ${btn}
+      </div>`;
+    }).join('');
+    list.querySelectorAll('button[data-slug]').forEach(b=>{
+      b.onclick = ()=>{
+        if(b.getAttribute('data-ready')==='0' &&
+           !confirm('This clinic has not met all mandatory checks. Force go-live anyway? (audited override)')) return;
+        approve(b.getAttribute('data-slug'), b);
+      };
+    });
+  }catch(e){ showError('Could not load pending clinics.'); }
+}
+
+async function approve(slug, btn){
+  clearError(); btn.disabled = true; btn.textContent = 'Approving…';
+  try{
+    const r = await fetch(`${API}/onboarding/override`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({slug, reason:'provider approved'})});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error && d.error.message) || 'Approve failed'); btn.disabled=false; btn.textContent='Approve go-live'; return; }
+    load();
+  }catch(e){ showError('Network error.'); btn.disabled=false; btn.textContent='Approve go-live'; }
+}
+
+load();
+</script>
+</body>
+</html>

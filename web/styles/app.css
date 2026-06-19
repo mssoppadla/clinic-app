@@ -60,6 +60,7 @@ h3{margin:0 0 3px;font-size:.95rem}
 .btn.ghost{background:#fff;color:var(--brand);border:1.6px solid var(--brand)}
 .btn.ghost .ml{color:var(--brand);opacity:.7}
 .btn.accent{background:var(--accent)} .btn.red{background:var(--red)} .btn.amber{background:var(--amber)}
+.btn.dark{background:var(--ink)}   /* neutral/override action (e.g. force go-live) */
 .btn.sm{min-height:44px;padding:10px 14px;font-size:.9rem;width:auto}
 
 /* segmented control (mock .seg) */
@@ -118,7 +119,25 @@ h3{margin:0 0 3px;font-size:.95rem}
 .result.ok{background:var(--ok-soft);color:var(--ok);border:1px solid #bfe6cf}
 .result.bad{background:var(--red-soft);color:#a4262c;border:1px solid #f3c6c6}
 .hint{font-size:.72rem;color:var(--muted);margin:-4px 0 8px}
+.hint.ok{color:var(--ok)} .hint.bad{color:var(--red)}
 .cardhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+
+/* ---- onboarding (clinic registration) ---- */
+.slugrow{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+.slugrow:focus-within{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+.slugrow .slugpre{font-size:.78rem;color:var(--muted);padding-left:12px;white-space:nowrap;flex:0 0 auto}
+.slugrow .input{border:none;border-radius:0;padding-left:2px}
+.slugrow .input:focus{outline:none}
+.checklist{margin-top:6px}
+.snippet{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.72rem;border:1px solid var(--line);
+  border-radius:10px;padding:10px;background:var(--bg);color:var(--ink);resize:vertical;min-height:64px}
+.previewbox{background:var(--bg);border:1px dashed var(--line);border-radius:14px;padding:14px}
+
+/* embedded on a clinic's own website (iframe ?embed=1) — hide app chrome so it blends in */
+html.embed,html.embed body{background:transparent}
+html.embed .top{display:none}
+html.embed.show-header .top{display:flex}   /* clinic opted to keep a branded header in-embed */
+html.embed .wrap{padding-top:14px;padding-bottom:24px}
 
 /* ---- admin integration icon badges (brand marks) ---- */
 .cardhead h3{display:flex;align-items:center;gap:11px;margin:0}

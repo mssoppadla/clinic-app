@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Set up your clinic · tovaitech appointments</title>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=7"/>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo">T</div>
+  <div>
+    <h1>Set up your clinic<span class="ml">നിങ്ങളുടെ ക്ലിനിക് സജ്ജമാക്കൂ</span></h1>
+    <p>tovaitech appointments · live in ~15 min · no card</p>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="error" class="err hidden"></div>
+
+  <!-- SCREEN 1: register -->
+  <section id="register" class="card">
+    <div class="ident"><b>Register your clinic</b></div>
+    <p class="hint">Create your clinic on tovaitech. A reviewer approves go-live before patients can book.</p>
+
+    <div class="field">
+      <label data-k="Clinic name">Clinic name<span class="ml">ക്ലിനിക്കിന്റെ പേര്</span></label>
+      <input class="input" id="name" autocomplete="organization" placeholder="e.g. Green Cross Clinic"/>
+    </div>
+
+    <div class="field">
+      <label>Your booking link</label>
+      <div class="slugrow">
+        <span class="slugpre">tovaitech.in/appointments/</span>
+        <input class="input" id="slug" inputmode="url" autocapitalize="none" autocorrect="off"
+               spellcheck="false" placeholder="green-cross-clinic"/>
+      </div>
+      <p class="hint" id="slugState">Lowercase letters, numbers and hyphens.</p>
+    </div>
+
+    <div class="field">
+      <label>Where will patients book?</label>
+      <label class="consent" style="margin:2px 0 0"><input type="radio" name="hosting" value="hosted" checked/>
+        <span>On a tovaitech page <span class="muted">— we host it at tovaitech.in/appointments/your-clinic</span></span></label>
+      <label class="consent" style="margin:6px 0 0"><input type="radio" name="hosting" value="embed"/>
+        <span>On my own website <span class="muted">— one-line embed, your brand & domain</span></span></label>
+      <label class="consent" style="margin:6px 0 0"><input type="radio" name="hosting" value="both"/>
+        <span>Both</span></label>
+    </div>
+
+    <div class="field">
+      <label>Your name <span class="muted">(clinic admin)</span></label>
+      <input class="input" id="contact_name" autocomplete="name" placeholder="Full name"/>
+    </div>
+
+    <div class="grid2">
+      <div class="field"><label>Email</label>
+        <input class="input" id="contact_email" type="email" autocomplete="email" placeholder="you@clinic.in"/></div>
+      <div class="field"><label>Phone</label>
+        <input class="input" id="contact_phone" inputmode="tel" autocomplete="tel" placeholder="+91 ..."/></div>
+    </div>
+
+    <div class="field">
+      <label>Languages <span class="muted">(English always on)</span></label>
+      <label class="consent" style="margin:2px 0 0">
+        <input type="checkbox" id="lang_ml" checked/>
+        <span>Also show Malayalam <span lang="ml">മലയാളം</span></span>
+      </label>
+    </div>
+
+    <button class="btn" id="registerBtn" type="button">Register clinic<span class="ml">രജിസ്റ്റർ ചെയ്യുക</span></button>
+    <p class="foot">English always · + <span lang="ml">മലയാളം</span> when enabled</p>
+  </section>
+
+  <!-- SCREEN 2: success -->
+  <section id="done" class="card hidden">
+    <h2><span class="pill a" id="statePill">pending approval</span></h2>
+    <h3 id="doneName" style="margin:6px 0 2px">Clinic registered</h3>
+    <p class="hint" id="doneIntro">Your clinic is registered and waiting for a reviewer to approve go-live.</p>
+
+    <!-- hosted option -->
+    <div id="hostedSection" class="token hidden">
+      <div class="muted">Your tovaitech booking link</div>
+      <div class="code" id="hostedLink">—</div>
+      <button class="btn ghost sm" id="copyLink" type="button" style="margin-top:10px">Copy link</button>
+    </div>
+
+    <!-- embed option -->
+    <div id="embedSection" class="field hidden" style="margin-top:14px">
+      <label>Add booking to your own website</label>
+      <p class="hint">Paste this one line into your site — a booking box appears, no setup needed.</p>
+      <textarea class="snippet" id="snippet" readonly rows="2"></textarea>
+      <div class="row2">
+        <button class="btn ghost sm" id="copySnippet" type="button">Copy embed code</button>
+        <a class="btn ghost sm" id="customizeLink" href="#">Customize colours & text</a>
+      </div>
+    </div>
+
+    <div id="checklist" class="checklist"></div>
+
+    <button class="btn ghost" id="againBtn" type="button" style="margin-top:12px">Register another clinic</button>
+  </section>
+</div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
+const apiSuffix = Q.get('api') ? `&api=${encodeURIComponent(Q.get('api'))}` : '';
+
+const $ = s => document.querySelector(s);
+const show = id => $(id).classList.remove('hidden');
+const hide = id => $(id).classList.add('hidden');
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); window.scrollTo(0,0); };
+const clearError = () => $('#error').classList.add('hidden');
+
+let STATE = { slug:'', name:'', hosting:'hosted', readiness:null, go_live:false };
+
+function slugify(t){
+  return (t||'').trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g,'-').replace(/-{2,}/g,'-').replace(/^-+|-+$/g,'').slice(0,80);
+}
+
+let slugTouched = false;
+const nameEl = $('#name'), slugEl = $('#slug'), slugState = $('#slugState');
+nameEl.addEventListener('input', ()=>{ if(!slugTouched){ slugEl.value = slugify(nameEl.value); checkSlug(); } });
+slugEl.addEventListener('input', ()=>{ slugTouched = true; checkSlug(); });
+
+let slugTimer = null;
+function checkSlug(){
+  clearTimeout(slugTimer);
+  const v = slugEl.value.trim();
+  if(!v){ slugState.textContent = 'Lowercase letters, numbers and hyphens.'; slugState.className='hint'; return; }
+  slugState.textContent = 'Checking…'; slugState.className='hint';
+  slugTimer = setTimeout(async ()=>{
+    try{
+      const r = await fetch(`${API}/onboarding/clinic/slug-available?slug=${encodeURIComponent(v)}`);
+      const d = await r.json();
+      if(d.available){ slugState.textContent = `✓ tovaitech.in/appointments/${d.normalized} is available`; slugState.className='hint ok'; }
+      else { const why = d.reason==='taken' ? 'already taken' : (d.reason==='reserved' ? 'reserved — pick another' : 'not a valid link'); slugState.textContent = `✗ ${d.normalized||v}: ${why}`; slugState.className='hint bad'; }
+    }catch(e){ slugState.textContent = 'Could not check availability.'; slugState.className='hint'; }
+  }, 350);
+}
+
+function hostingChoice(){ const r=document.querySelector('input[name="hosting"]:checked'); return r ? r.value : 'hosted'; }
+
+$('#registerBtn').onclick = async ()=>{
+  clearError();
+  const name = nameEl.value.trim();
+  if(name.length < 2){ showError('Please enter your clinic name.'); return; }
+  const languages = ['en']; if($('#lang_ml').checked) languages.push('ml');
+  const payload = {
+    name, slug: slugEl.value.trim() || undefined,
+    contact_name: $('#contact_name').value.trim() || null,
+    contact_email: $('#contact_email').value.trim() || null,
+    contact_phone: $('#contact_phone').value.trim() || null,
+    languages, branding: { hosting: hostingChoice() },
+  };
+  $('#registerBtn').disabled = true;
+  try{
+    const r = await fetch(`${API}/onboarding/clinic`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error && d.error.message) || ('Could not register ('+r.status+')')); return; }
+    STATE = { slug:d.slug, name:d.name, hosting:(d.branding&&d.branding.hosting)||'hosted', readiness:d.readiness, go_live:d.go_live };
+    // reflect the new state in the URL (refresh-safe; shareable)
+    history.pushState({slug:d.slug}, '', `/appointments/onboard?slug=${encodeURIComponent(d.slug)}${apiSuffix}`);
+    renderDone();
+  }catch(e){ showError('Network error — please try again.'); }
+  finally{ $('#registerBtn').disabled = false; }
+};
+
+function renderDone(){
+  const url = `${location.origin}/appointments/${STATE.slug}`;
+  const live = STATE.go_live;
+  $('#statePill').textContent = live ? 'live' : 'pending approval';
+  $('#statePill').className = 'pill ' + (live ? 'g' : 'a');
+  $('#doneName').textContent = STATE.name + (live ? ' — live' : ' — registered');
+  $('#doneIntro').textContent = live
+    ? 'Your clinic is live. Patients can book using the options below.'
+    : 'Registered and waiting for a reviewer to approve go-live. The booking link works once approved.';
+
+  const wantHosted = STATE.hosting === 'hosted' || STATE.hosting === 'both';
+  const wantEmbed  = STATE.hosting === 'embed'  || STATE.hosting === 'both';
+
+  // hosted
+  $('#hostedSection').classList.toggle('hidden', !wantHosted);
+  if(wantHosted){
+    $('#hostedLink').textContent = url;
+    $('#copyLink').onclick = ()=>{ navigator.clipboard && navigator.clipboard.writeText(url); $('#copyLink').textContent='Copied'; };
+  }
+  // embed
+  $('#embedSection').classList.toggle('hidden', !wantEmbed);
+  if(wantEmbed){
+    const snippet = `<script src="${location.origin}/appointments/assets/embed.js" data-clinic="${STATE.slug}" async><\/script>`;
+    $('#snippet').value = snippet;
+    $('#copySnippet').onclick = ()=>{ navigator.clipboard && navigator.clipboard.writeText(snippet); $('#copySnippet').textContent='Copied'; };
+    $('#customizeLink').href = `/appointments/onboard/customize?slug=${encodeURIComponent(STATE.slug)}${apiSuffix}`;
+  }
+  renderChecklist();
+  hide('#register'); show('#done');
+}
+
+function renderChecklist(){
+  const cl = $('#checklist'); cl.innerHTML = '';
+  const items = (STATE.readiness && STATE.readiness.mandatory) || [];
+  if(!items.length) return;
+  const met = STATE.readiness.mandatory_met;
+  let html = `<div class="kv" style="border:none;padding-bottom:2px"><span class="muted">Go-live checklist</span>`
+    + `<span class="pill ${met?'g':'a'}">${met?'all mandatory met':'incomplete'}</span></div>`;
+  html += items.map(it=>{
+    const action = (!it.done && it.key==='doctor_slots')
+      ? `<a class="btn ghost sm" href="/appointments/onboard/doctors?slug=${encodeURIComponent(STATE.slug)}${apiSuffix}">Add now</a>`
+      : `<span class="pill ${it.done?'g':'n'}">${it.done?'✓':'todo'}</span>`;
+    return `<div class="kv"><span>${it.label}</span>${action}</div>`;
+  }).join('');
+  cl.innerHTML = html;
+}
+
+$('#againBtn').onclick = ()=>{ location.href = `/appointments/onboard${Q.get('api')?('?api='+encodeURIComponent(Q.get('api'))):''}`; };
+
+// Refresh-safe / shareable: if the URL carries ?slug, rebuild the success screen.
+async function loadExisting(slug){
+  try{
+    const [aR, sR] = await Promise.all([
+      fetch(`${API}/onboarding/appearance?slug=${encodeURIComponent(slug)}`),
+      fetch(`${API}/onboarding/status?slug=${encodeURIComponent(slug)}`),
+    ]);
+    if(!aR.ok || !sR.ok) throw 0;
+    const a = await aR.json(), s = await sR.json();
+    STATE = { slug, name:a.name, hosting:(a.branding&&a.branding.hosting)||'both',
+              readiness:s, go_live:s.go_live };
+    renderDone();
+  }catch(e){ /* unknown slug -> just show the register form */ }
+}
+if(Q.get('slug')) loadExisting(Q.get('slug'));
+</script>
+</body>
+</html>

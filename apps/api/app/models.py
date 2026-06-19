@@ -34,6 +34,13 @@ class Tenant(Base):
     languages: Mapped[list] = mapped_column(JSON, default=lambda: ["en"])
     branding: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    # Onboarding [C34]: a self-registered clinic is created NOT live; a provider approves
+    # (go-live / override) before its hosted page accepts patients. Existing/seeded tenants
+    # default go_live=True so current behaviour is unchanged [A27, A28].
+    go_live: Mapped[bool] = mapped_column(Boolean, default=True)
+    contact_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class Doctor(Base):

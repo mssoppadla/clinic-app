@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Customize your booking widget · tovaitech</title>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=7"/>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo">T</div>
+  <div><h1>Customize your booking widget</h1><p id="forSlug">Match your brand · live preview</p></div>
+</div>
+
+<div class="adminwrap">
+  <div id="error" class="err hidden"></div>
+  <div class="grid2">
+    <!-- editor -->
+    <section class="card">
+      <div class="cardhead"><h3>Appearance</h3><span id="saveState" class="pill n">not saved</span></div>
+      <p class="hint">Everything visible on the widget is editable here. Changes preview instantly on the right;
+        click Save to apply to your hosted page and embedded widget.</p>
+
+      <div class="field"><label>Headline</label>
+        <input class="input" id="headline" placeholder="e.g. Green Cross Clinic"/></div>
+      <div class="field"><label>Tagline / subtitle</label>
+        <input class="input" id="tagline" placeholder="e.g. Kochi · General Medicine"/></div>
+      <div class="field"><label>Primary button text</label>
+        <input class="input" id="book_label" placeholder="Book appointment"/></div>
+      <div class="field"><label>Logo URL <span class="muted">(optional)</span></label>
+        <input class="input" id="logo" inputmode="url" placeholder="https://yourclinic.in/logo.png"/></div>
+      <div class="grid2">
+        <div class="field"><label>Brand colour</label>
+          <input class="input" id="color" type="color" value="#0e7c66" style="height:48px;padding:6px"/></div>
+        <div class="field"><label>Accent colour</label>
+          <input class="input" id="accent" type="color" value="#2563eb" style="height:48px;padding:6px"/></div>
+      </div>
+      <label class="consent" style="margin:2px 0 0">
+        <input type="checkbox" id="show_header"/>
+        <span>Show a branded header inside the embedded widget</span>
+      </label>
+
+      <button class="btn" id="saveBtn" type="button" style="margin-top:14px">Save appearance</button>
+    </section>
+
+    <!-- preview + embed code -->
+    <section class="card">
+      <div class="cardhead"><h3>Live preview</h3><span class="pill g">your brand</span></div>
+      <div id="preview" class="previewbox">
+        <div class="card" style="margin:0">
+          <div class="ident"><b id="pvName">● Clinic</b></div>
+          <div class="subtitle" id="pvTag">—</div>
+          <div class="stats">
+            <div class="stat"><b>3</b><span>in queue now</span></div>
+            <div class="stat"><b>~30m</b><span>avg wait</span></div>
+          </div>
+          <button class="btn" id="pvBtn" type="button" style="margin-top:12px">Book appointment</button>
+          <div class="row2">
+            <button class="btn ghost sm" type="button">💬 WhatsApp</button>
+            <button class="btn ghost sm" type="button" style="color:var(--accent);border-color:var(--accent)">Reserve</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:16px">
+        <label>Embed on your website (one line)</label>
+        <p class="hint">Paste into your site. The widget loads on <b>your</b> domain and shows the brand you set here.</p>
+        <textarea class="snippet" id="snippet" readonly rows="2"></textarea>
+        <button class="btn ghost sm" id="copySnippet" type="button" style="margin-top:8px">Copy embed code</button>
+      </div>
+      <p class="foot">Prefer us to host it? Your page is also live at
+        <span id="hostedHint">tovaitech.in/appointments/your-clinic</span>.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
+const SLUG = Q.get('slug') || '';
+const $ = s => document.querySelector(s);
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); };
+const clearError = () => $('#error').classList.add('hidden');
+
+const FIELDS = ['headline','tagline','book_label','logo','color','accent'];
+function readForm(){
+  const b = {};
+  FIELDS.forEach(k=>{ const v=$('#'+k).value.trim(); if(v) b[k]=v; });
+  b.show_header = $('#show_header').checked;
+  return b;
+}
+
+function preview(){
+  const b = readForm();
+  const pv = $('#preview');
+  pv.style.setProperty('--brand', b.color || '#0e7c66');
+  pv.style.setProperty('--accent', b.accent || '#2563eb');
+  $('#pvName').textContent = '● ' + (b.headline || 'Your Clinic');
+  $('#pvTag').textContent = b.tagline || 'Kochi · General Medicine';
+  $('#pvBtn').textContent = b.book_label || 'Book appointment';
+  // snippet: clean one-liner; saved config drives the look (no need to inline everything)
+  const origin = location.origin;
+  $('#snippet').value = `<script src="${origin}/appointments/assets/embed.js" data-clinic="${SLUG||'your-clinic'}" async><\/script>`;
+  $('#hostedHint').textContent = `${location.host}/appointments/${SLUG||'your-clinic'}`;
+  $('#saveState').textContent = 'unsaved changes'; $('#saveState').className = 'pill a';
+}
+
+FIELDS.forEach(k=> $('#'+k).addEventListener('input', preview));
+$('#show_header').addEventListener('change', preview);
+
+async function loadCurrent(){
+  if(!SLUG){ showError('No clinic specified. Open this from the registration success page.'); return; }
+  $('#forSlug').textContent = `Clinic: ${SLUG}`;
+  try{
+    const r = await fetch(`${API}/onboarding/appearance?slug=${encodeURIComponent(SLUG)}`);
+    if(!r.ok) throw 0;
+    const d = await r.json();
+    const b = d.branding || {};
+    if(b.headline) $('#headline').value = b.headline;
+    if(b.tagline) $('#tagline').value = b.tagline;
+    if(b.book_label) $('#book_label').value = b.book_label;
+    if(b.logo) $('#logo').value = b.logo;
+    if(b.color) $('#color').value = b.color;
+    if(b.accent) $('#accent').value = b.accent;
+    if(b.show_header) $('#show_header').checked = true;
+    if(!b.headline && d.name) $('#headline').value = d.name;
+  }catch(e){ /* new clinic with no config yet — fine */ }
+  preview();
+  $('#saveState').textContent = 'loaded'; $('#saveState').className = 'pill n';
+}
+
+$('#saveBtn').onclick = async ()=>{
+  clearError();
+  if(!SLUG){ showError('No clinic specified.'); return; }
+  $('#saveBtn').disabled = true;
+  try{
+    const r = await fetch(`${API}/onboarding/appearance`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({slug:SLUG, branding:readForm()})});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error && d.error.message) || 'Save failed'); return; }
+    $('#saveState').textContent = 'saved ✓'; $('#saveState').className = 'pill g';
+  }catch(e){ showError('Network error — please try again.'); }
+  finally{ $('#saveBtn').disabled = false; }
+};
+
+$('#copySnippet').onclick = ()=>{ navigator.clipboard && navigator.clipboard.writeText($('#snippet').value); $('#copySnippet').textContent='Copied'; };
+
+loadCurrent();
+</script>
+</body>
+</html>
