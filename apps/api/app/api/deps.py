@@ -37,6 +37,16 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
     return claims
 
 
+def optional_current_user(authorization: str | None = Header(default=None)) -> dict | None:
+    """Decoded claims if a valid Bearer token is present, else None (never raises)."""
+    if not authorization:
+        return None
+    try:
+        return get_current_user(authorization)
+    except AppError:
+        return None
+
+
 def require_role(*roles: str):
     """Dependency factory: allow only users holding one of `roles` (any tenant)."""
     allowed = set(roles)
@@ -52,6 +62,33 @@ def require_role(*roles: str):
 
 def get_tenant(request: Request, x_clinic_slug: str | None = Header(default=None)) -> dict:
     return resolve_tenant(request, x_clinic_slug)
+
+
+# --- clinic-scoped staff authorization (hospital-specific pages) -----------------------------
+# Every staff page is addressed per clinic: /appointments/<slug>/{slots,admin,users}. The page
+# sends X-Clinic-Slug; this dependency resolves THAT clinic and authorizes the caller against it
+# — a superadmin (platform admin) may act on any clinic; clinic staff only on their own. This is
+# what keeps each hospital's slots/config/team isolated even though the code is shared.
+STAFF_ROLES = ("clinic_admin", "doctor", "front_desk", "triage")
+
+
+def require_clinic_staff(*roles: str):
+    """Dependency factory: caller must be superadmin OR hold one of `roles` for the clinic named
+    by X-Clinic-Slug. Returns {"tenant": <resolved clinic>, "user": <claims>}.
+    Resolves the clinic with require_live=False so staff can set it up before go-live."""
+    allowed = set(roles) or set(STAFF_ROLES)
+
+    def _dep(request: Request, x_clinic_slug: str | None = Header(default=None),
+             user: dict = Depends(get_current_user)) -> dict:
+        tenant = resolve_tenant(request, x_clinic_slug, require_live=False)
+        held = user.get("roles") or []
+        if any(r.get("role") == "superadmin" for r in held):
+            return {"tenant": tenant, "user": user}
+        if any(r.get("role") in allowed and r.get("tenant_id") == tenant["id"] for r in held):
+            return {"tenant": tenant, "user": user}
+        raise AppError("forbidden", "You don't manage this clinic.", status=403)
+
+    return _dep
 
 
 def get_scope(db=Depends(get_db), tenant: dict = Depends(get_tenant)) -> TenantScope:

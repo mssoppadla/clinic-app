@@ -10,6 +10,16 @@
   var KEY = "tovai_admin_token";
   var token = function () { return sessionStorage.getItem(KEY) || ""; };
 
+  // Staff pages are clinic-scoped: /appointments/<slug>/{admin,slots,users}. Derive the slug
+  // from the path (override with ?clinic= for local testing) and send it on every API call so
+  // the backend knows WHICH hospital this page is managing.
+  function clinicSlug() {
+    if (Q.get("clinic")) return Q.get("clinic");
+    var m = location.pathname.match(/^\/appointments\/([^/]+)\/(?:admin|slots|users|doctor)\/?$/);
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+  window.CLINIC_SLUG = clinicSlug();
+
   async function postJSON(path, body, auth) {
     var h = { "Content-Type": "application/json" };
     if (auth && token()) h.Authorization = "Bearer " + token();
@@ -95,7 +105,9 @@
   window.requireLogin = function () { if (!token()) loginView(); };
   window.authFetch = async function (url, opts) {
     opts = opts || {};
-    opts.headers = Object.assign({}, opts.headers || {}, token() ? { Authorization: "Bearer " + token() } : {});
+    var extra = token() ? { Authorization: "Bearer " + token() } : {};
+    if (window.CLINIC_SLUG) extra["X-Clinic-Slug"] = window.CLINIC_SLUG;
+    opts.headers = Object.assign({}, opts.headers || {}, extra);
     var r = await fetch(url, opts);
     if (r.status === 401) { sessionStorage.removeItem(KEY); if (!document.getElementById("loginOverlay")) loginView(); }
     return r;

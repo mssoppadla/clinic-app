@@ -8,3 +8,7 @@ node_modules/
 # local-only validation artifacts (never deployed)
 deploy/Caddyfile.local
 .localtest/
+# Playwright (browser e2e) artifacts
+e2e/ui/test-results/
+e2e/ui/playwright-report/
+e2e/ui/.cache/

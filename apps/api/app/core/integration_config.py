@@ -34,22 +34,34 @@ def _env_default(field: str | None) -> str:
     return str(val) if val is not None else ""
 
 
-def get_effective(provider: str, scope: str = "platform") -> dict:
-    """Full config INCLUDING secrets — internal use by clients only."""
+def _clinic_scope(tenant_id: str) -> str:
+    return f"clinic:{tenant_id}"
+
+
+def _overlay(cfg: dict, db, provider: str, scope: str) -> None:
+    for r in db.query(IntegrationConfig).filter(
+            IntegrationConfig.provider == provider,
+            IntegrationConfig.scope == scope).all():
+        if r.value != "":
+            cfg[r.key] = r.value
+
+
+def get_effective(provider: str, tenant_id: str | None = None) -> dict:
+    """Full config INCLUDING secrets — internal use by clients only.
+
+    Layered: env defaults < platform-scope DB < this clinic's DB. So each hospital can have its
+    own WhatsApp number / Bhashini creds, falling back to a platform default when unset."""
     cfg = {k: _env_default(v) for k, v in FIELDS[provider].items()}
     with session_scope() as db:
-        rows = db.query(IntegrationConfig).filter(
-            IntegrationConfig.provider == provider,
-            IntegrationConfig.scope == scope).all()
-        for r in rows:
-            if r.value != "":
-                cfg[r.key] = r.value
+        _overlay(cfg, db, provider, "platform")
+        if tenant_id:
+            _overlay(cfg, db, provider, _clinic_scope(tenant_id))
     return cfg
 
 
-def get_public(provider: str, scope: str = "platform") -> dict:
+def get_public(provider: str, tenant_id: str | None = None) -> dict:
     """Safe view for the UI: secrets replaced by a 'configured' flag, never the value."""
-    eff = get_effective(provider, scope)
+    eff = get_effective(provider, tenant_id)
     out = {}
     for k, v in eff.items():
         if k in SECRETS.get(provider, set()):
@@ -59,8 +71,10 @@ def get_public(provider: str, scope: str = "platform") -> dict:
     return out
 
 
-def set_many(provider: str, data: dict, scope: str = "platform") -> None:
-    """Upsert provided keys. Empty secret values are ignored (don't wipe an existing secret)."""
+def set_many(provider: str, data: dict, tenant_id: str | None = None) -> None:
+    """Upsert provided keys for a clinic (or platform when tenant_id is None).
+    Empty secret values are ignored (don't wipe an existing secret)."""
+    scope = _clinic_scope(tenant_id) if tenant_id else "platform"
     secrets = SECRETS.get(provider, set())
     valid = set(FIELDS[provider].keys())
     with session_scope() as db:

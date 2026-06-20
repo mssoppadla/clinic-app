@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Doctor · dashboard</title>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=8"/>
+<script src="/appointments/assets/admin-auth.js"></script>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo">T</div>
+  <div><h1 id="docName">Doctor</h1><p id="docSub">Your day at a glance</p></div>
+</div>
+
+<div class="adminwrap">
+  <div id="error" class="err hidden"></div>
+
+  <!-- admins can pick which doctor's day to view; a doctor is locked to their own -->
+  <section class="card hidden" id="pickCard">
+    <div class="field"><label>Doctor</label><select class="select" id="docPick"></select></div>
+  </section>
+
+  <section class="card">
+    <div class="cardhead"><h3>Now serving</h3>
+      <button class="btn sm" id="callNext" type="button">Call next</button></div>
+    <div id="serving"><p class="muted" style="padding:6px 0">No one being served.</p></div>
+  </section>
+
+  <section class="card">
+    <div class="cardhead"><h3>Waiting <span id="waitCount" class="pill n">…</span></h3></div>
+    <div id="waiting"></div>
+  </section>
+
+  <section class="card">
+    <div class="cardhead"><h3>Seen today <span id="doneCount" class="pill n">…</span></h3></div>
+    <div id="done"></div>
+  </section>
+
+  <a class="btn ghost" id="scheduleLink" href="#" style="margin-top:4px">Manage my schedule &amp; leave</a>
+</div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
+const $ = s => document.querySelector(s);
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); window.scrollTo(0,0); };
+const clearError = () => $('#error').classList.add('hidden');
+let ME = { can_manage_all: false, doctor_id: null };
+let DOCTOR = null;   // the doctor whose day we're viewing
+
+const slug = window.CLINIC_SLUG;
+$('#scheduleLink').href = `/appointments/${slug}/slots`;
+
+async function loadProfile(){
+  const r = await authFetch(`${API}/slots/doctors`);
+  if(!r.ok) return;
+  const data = await r.json();
+  ME = data.me || ME;
+  const docs = data.doctors || [];
+  if(ME.can_manage_all){
+    // admin view: choose any doctor in the clinic
+    $('#pickCard').classList.remove('hidden');
+    $('#docPick').innerHTML = docs.map(d=>`<option value="${d.id}">${d.name}${d.specialty?' · '+d.specialty:''}</option>`).join('')
+      || '<option value="">No doctors yet</option>';
+    DOCTOR = docs[0] || null;
+    $('#docPick').onchange = ()=>{ DOCTOR = docs.find(d=>d.id===$('#docPick').value)||null; renderProfile(); loadQueue(); };
+  } else {
+    DOCTOR = docs.find(d=>d.id===ME.doctor_id) || null;
+  }
+  renderProfile();
+}
+function renderProfile(){
+  if(DOCTOR){ $('#docName').textContent = DOCTOR.name; $('#docSub').textContent = (DOCTOR.specialty||'Doctor') + ' · your day at a glance'; }
+}
+
+function row(p, actions){
+  return `<div class="kv"><span><b>${p.token||''}</b> <span class="muted">${p.patient}</span></span><span>${actions}</span></div>`;
+}
+async function loadQueue(){
+  clearError();
+  const docId = ME.can_manage_all ? (DOCTOR && DOCTOR.id) : ME.doctor_id;
+  if(ME.can_manage_all && !docId){ $('#waiting').innerHTML='<p class="muted">Pick a doctor.</p>'; return; }
+  const qs = docId ? `?doctor=${encodeURIComponent(docId)}` : '';
+  const r = await authFetch(`${API}/queue${qs}`);
+  if(!r.ok){ if(r.status!==401) showError('Could not load the queue.'); return; }
+  const d = await r.json();
+  // serving
+  $('#serving').innerHTML = d.serving
+    ? row(d.serving, `<button class="btn sm" data-done="${d.serving.id}">Done</button> <button class="btn ghost sm" data-no="${d.serving.id}">No-show</button>`)
+    : '<p class="muted" style="padding:6px 0">No one being served. Tap “Call next”.</p>';
+  // waiting
+  $('#waitCount').textContent = d.counts.waiting;
+  $('#waiting').innerHTML = d.waiting.length
+    ? d.waiting.map(p=>row(p, `<button class="btn sm" data-serve="${p.id}">Start</button> <button class="btn ghost sm" data-no="${p.id}">No-show</button>`)).join('')
+    : '<p class="muted" style="padding:6px 0">No one waiting.</p>';
+  // done
+  $('#doneCount').textContent = d.counts.done;
+  $('#done').innerHTML = d.done.length
+    ? d.done.map(p=>`<div class="kv"><span><b>${p.token||''}</b> <span class="muted">${p.patient}</span></span><span class="pill ${p.state==='no_show'?'r':'g'}">${p.state==='no_show'?'no-show':'done'}</span></div>`).join('')
+    : '<p class="muted" style="padding:6px 0">No one seen yet.</p>';
+  wire();
+}
+function wire(){
+  document.querySelectorAll('[data-serve]').forEach(b=>b.onclick=()=>setState(b.getAttribute('data-serve'),'serving'));
+  document.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>setState(b.getAttribute('data-done'),'done'));
+  document.querySelectorAll('[data-no]').forEach(b=>b.onclick=()=>setState(b.getAttribute('data-no'),'no_show'));
+}
+async function setState(id, state){
+  const r = await authFetch(`${API}/queue/${id}/state`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({state})});
+  if(!r.ok){ const e=await r.json().catch(()=>({})); showError((e.error&&e.error.message)||'Could not update.'); return; }
+  loadQueue();
+}
+$('#callNext').onclick = async ()=>{
+  const docId = ME.can_manage_all ? (DOCTOR && DOCTOR.id) : undefined;
+  const r = await authFetch(`${API}/queue/call-next`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(docId?{doctor_id:docId}:{})});
+  if(!r.ok){ const e=await r.json().catch(()=>({})); showError((e.error&&e.error.message)||'Could not call next.'); return; }
+  loadQueue();
+};
+
+if(!slug){
+  showError('Open this from your clinic — e.g. /appointments/<your-clinic>/doctor');
+} else {
+  requireLogin();
+  loadProfile().then(loadQueue);
+}
+</script>
+</body>
+</html>

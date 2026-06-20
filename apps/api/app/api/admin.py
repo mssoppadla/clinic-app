@@ -1,8 +1,9 @@
-"""Platform/admin integration configuration endpoints.
+"""Per-clinic integration configuration endpoints.
 
-In prod these require staffAuth with an admin/superadmin scope (per the contract). For the
-Phase-0 local skeleton auth is not yet enforced — wired in Phase 2. Secrets are write-only:
-GET never returns a secret value, only whether it is configured.
+Each hospital configures its OWN WhatsApp number + Bhashini creds — addressed per clinic at
+/appointments/<slug>/admin (the page sends X-Clinic-Slug). Authorized to that clinic's admin or
+a platform superadmin. Config is layered env < platform < clinic, so a clinic falls back to a
+platform default until it sets its own. Secrets are write-only: GET never returns a secret value.
 """
 from __future__ import annotations
 
@@ -11,21 +12,21 @@ from pydantic import BaseModel
 
 from ..core import integration_config as cfg
 from ..integrations import bhashini, whatsapp
-from .deps import require_role
+from .deps import require_clinic_staff
 
-# Platform integration config (secrets) — superadmin only [AC1].
-router = APIRouter(prefix="/admin/integrations", tags=["admin"],
-                   dependencies=[Depends(require_role("superadmin"))])
+# clinic_admin manages their own clinic's providers; superadmin may manage any clinic's.
+router = APIRouter(prefix="/admin/integrations", tags=["admin"])
 
 PROVIDERS = ("whatsapp", "bhashini")
 
 
 @router.get("/status")
-def status():
-    out = {}
+def status(ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    tid = ctx["tenant"]["id"]
+    out = {"clinic": {"slug": ctx["tenant"]["slug"], "name": ctx["tenant"]["name"]}}
     for p in PROVIDERS:
-        eff = cfg.get_effective(p)
-        pub = cfg.get_public(p)
+        eff = cfg.get_effective(p, tenant_id=tid)
+        pub = cfg.get_public(p, tenant_id=tid)
         ready = eff.get("mode") == "live" and all(
             eff.get(k) for k in (["token", "phone_number_id"] if p == "whatsapp" else ["api_key", "base_url"])
         )
@@ -56,15 +57,17 @@ class BhashiniCfg(BaseModel):
 
 
 @router.put("/whatsapp")
-def set_whatsapp(body: WhatsAppCfg):
-    cfg.set_many("whatsapp", body.model_dump(exclude_none=True))
-    return cfg.get_public("whatsapp")
+def set_whatsapp(body: WhatsAppCfg, ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    tid = ctx["tenant"]["id"]
+    cfg.set_many("whatsapp", body.model_dump(exclude_none=True), tenant_id=tid)
+    return cfg.get_public("whatsapp", tenant_id=tid)
 
 
 @router.put("/bhashini")
-def set_bhashini(body: BhashiniCfg):
-    cfg.set_many("bhashini", body.model_dump(exclude_none=True))
-    return cfg.get_public("bhashini")
+def set_bhashini(body: BhashiniCfg, ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    tid = ctx["tenant"]["id"]
+    cfg.set_many("bhashini", body.model_dump(exclude_none=True), tenant_id=tid)
+    return cfg.get_public("bhashini", tenant_id=tid)
 
 
 class WhatsAppTest(BaseModel):
@@ -73,8 +76,8 @@ class WhatsAppTest(BaseModel):
 
 
 @router.post("/whatsapp/test")
-def test_whatsapp(body: WhatsAppTest):
-    res = whatsapp().send_template(tenant_id="__admin_test__", to_phone=body.to_phone,
+def test_whatsapp(body: WhatsAppTest, ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    res = whatsapp().send_template(tenant_id=ctx["tenant"]["id"], to_phone=body.to_phone,
                                    template=body.template, params={"lang": "en"})
     return {"sent": res}
 
@@ -85,9 +88,10 @@ class BhashiniTest(BaseModel):
 
 
 @router.post("/bhashini/test")
-def test_bhashini(body: BhashiniTest):
-    out = bhashini().localize(tenant_id="__admin_test__", keys={body.text: body.text},
+def test_bhashini(body: BhashiniTest, ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    tid = ctx["tenant"]["id"]
+    out = bhashini().localize(tenant_id=tid, keys={body.text: body.text},
                               target_lang=body.target_lang)
     translated = out[body.text]
     return {"source": body.text, "translated": translated,
-            "used_fallback": translated == body.text or cfg.get_effective("bhashini").get("mode") != "live"}
+            "used_fallback": translated == body.text or cfg.get_effective("bhashini", tenant_id=tid).get("mode") != "live"}

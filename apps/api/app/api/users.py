@@ -15,7 +15,7 @@ from ..core.db import system_session
 from ..core.errors import AppError
 from ..core.security import generate_temp_password, hash_password
 from ..models import User, UserRole
-from .deps import require_role
+from .deps import require_clinic_staff, require_role
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -116,6 +116,14 @@ def create_user(body: CreateUserIn, caller: dict = Depends(require_role("superad
         db.flush()
         db.add(UserRole(user_id=u.id, tenant_id=tenant_id, role=body.role))
         return {**_user_view(db, u), "temp_password": temp, "reactivated": False}
+
+
+@router.get("/clinic")
+def my_clinic(ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    """Resolve the clinic this team page is scoped to (from X-Clinic-Slug).
+    Authorized for that clinic's admin or a superadmin — powers the hospital-specific team page."""
+    t = ctx["tenant"]
+    return {"tenant_id": t["id"], "slug": t["slug"], "name": t["name"]}
 
 
 @router.get("")

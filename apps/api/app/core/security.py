@@ -58,6 +58,13 @@ def create_refresh_token(*, sub: str) -> str:
     return _encode({"sub": sub, "typ": "refresh"}, timedelta(days=s.jwt_refresh_ttl_days))
 
 
+def create_patient_token(*, phone: str, tenant_id: str) -> str:
+    """Passwordless patient session (OTP login) — scope patient.self, tenant-bound. [AC8]"""
+    s = get_settings()
+    return _encode({"sub": f"patient:{phone}", "typ": "access", "scope": "patient.self",
+                    "tenant_id": tenant_id, "roles": []}, timedelta(minutes=s.jwt_access_ttl_min))
+
+
 def decode_token(token: str) -> dict:
     s = get_settings()
     return jwt.decode(token, s.jwt_secret, algorithms=["HS256"])

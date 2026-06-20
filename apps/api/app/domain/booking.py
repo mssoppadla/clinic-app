@@ -123,7 +123,8 @@ def create_booking(scope: TenantScope, settings: Settings, *, payload: dict,
     # 3) projections
     booking = Booking(
         tenant_id=scope.tenant_id, primary_patient_id=patient.id, doctor_id=doctor.id,
-        session_id=session.id, channel="online", status="confirmed",
+        session_id=session.id, slot_id=(slot.id if slot else None),
+        channel="online", status="confirmed",
         party_size=len(patients), fee_total_minor=doctor.fee_minor * len(patients),
         reason=payload.get("reason"),
     )
@@ -190,3 +191,83 @@ def clinic_public(scope: TenantScope, settings: Settings, tenant: dict) -> dict:
         "avg_wait_minutes": avg_wait,
         "doctors": doctors,
     }
+
+
+def _refund_amount(settings: Settings, booking: Booking) -> int:
+    """Configurable refund hook. Default: refund any captured fee on cancel. (No gateway yet,
+    so for unpaid bookings this is 0; the hook + event seam are in place for Phase-payments.)"""
+    if not getattr(settings, "refund_on_cancel", True):
+        return 0
+    return booking.fee_total_minor if booking.payment_status == "paid" else 0
+
+
+def cancel_booking(scope: TenantScope, settings: Settings, *, booking_id: str,
+                   actor: dict, reason: str | None = None) -> dict:
+    booking = scope.get(Booking, id=booking_id)
+    if booking is None:
+        raise AppError("booking_not_found", "No such booking", status=404)
+    if booking.status == "cancelled":
+        return {**_booking_view(scope, booking), "refund_minor": 0}
+    # free the reserved slot capacity
+    if booking.slot_id:
+        slot = scope.db.execute(
+            select(Slot).where(Slot.id == booking.slot_id, Slot.tenant_id == scope.tenant_id).with_for_update()
+        ).scalars().first()
+        if slot is not None:
+            slot.booked = max(0, slot.booked - booking.party_size)
+    # drop the patients out of the queue
+    for bp in scope.query(BookingPatient).filter(BookingPatient.booking_id == booking.id):
+        qe = scope.get(QueueEntry, booking_patient_id=bp.id)
+        if qe is not None:
+            qe.state = "cancelled"
+    booking.status = "cancelled"
+    refund = _refund_amount(settings, booking)
+    if refund > 0:
+        booking.payment_status = "refunded"
+        scope.add(UsageEvent(tenant_id=scope.tenant_id, provider="gateway", kind="refund", units=1,
+                             meta={"booking_id": booking.id, "amount_minor": refund}))
+    _append_event(scope, event_type="BookingCancelled", aggregate_id=booking.id,
+                  payload={"reason": reason, "refund_minor": refund}, actor=actor, idem=None)
+    return {**_booking_view(scope, booking), "refund_minor": refund}
+
+
+def reschedule_booking(scope: TenantScope, settings: Settings, *, booking_id: str,
+                       new_slot_id: str, actor: dict) -> dict:
+    booking = scope.get(Booking, id=booking_id)
+    if booking is None:
+        raise AppError("booking_not_found", "No such booking", status=404)
+    if booking.status == "cancelled":
+        raise AppError("booking_cancelled", "A cancelled booking can't be rescheduled", status=409)
+    new_slot = scope.db.execute(
+        select(Slot).where(Slot.id == new_slot_id, Slot.tenant_id == scope.tenant_id).with_for_update()
+    ).scalars().first()
+    if new_slot is None or new_slot.status != "open":
+        raise AppError("slot_not_found", "That slot is no longer available", status=404)
+    if new_slot.doctor_id != booking.doctor_id:
+        raise AppError("slot_mismatch", "Slot belongs to a different doctor", status=400)
+    if new_slot.booked + booking.party_size > new_slot.capacity:
+        raise AppError("slot_full", "This slot is no longer available", status=409, retryable=False)
+    # reserve the new slot, release the old one
+    new_slot.booked += booking.party_size
+    if booking.slot_id and booking.slot_id != new_slot.id:
+        old = scope.db.execute(
+            select(Slot).where(Slot.id == booking.slot_id, Slot.tenant_id == scope.tenant_id).with_for_update()
+        ).scalars().first()
+        if old is not None:
+            old.booked = max(0, old.booked - booking.party_size)
+    booking.slot_id = new_slot.id
+    booking.session_id = new_slot.session_id
+    label = new_slot.start_ts.strftime("%I:%M %p").lstrip("0")
+    for bp in scope.query(BookingPatient).filter(BookingPatient.booking_id == booking.id):
+        tok = scope.get(Token, booking_patient_id=bp.id)
+        if tok is not None:
+            tok.number = label
+            tok.session_id = new_slot.session_id
+        qe = scope.get(QueueEntry, booking_patient_id=bp.id)
+        if qe is not None:
+            qe.session_id = new_slot.session_id
+            qe.eta_ts = new_slot.start_ts
+            qe.state = "scheduled"
+    _append_event(scope, event_type="BookingRescheduled", aggregate_id=booking.id,
+                  payload={"new_slot_id": new_slot.id}, actor=actor, idem=None)
+    return _booking_view(scope, booking)

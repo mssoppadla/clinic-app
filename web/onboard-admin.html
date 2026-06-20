@@ -19,9 +19,16 @@
   <div id="error" class="err hidden"></div>
   <p class="hint">Clinics awaiting go-live. Approving makes the clinic active and its hosted page live for patients.
     (Auth is enforced in Phase 2 — this page is unlinked for now.)</p>
+  <div id="approveResult"></div>
   <section class="card">
     <div class="cardhead"><h3>Pending clinics <span id="count" class="pill n">…</span></h3></div>
     <div id="list"></div>
+  </section>
+
+  <section class="card">
+    <div class="cardhead"><h3>Active clinics <span id="activeCount" class="pill n">…</span></h3></div>
+    <p class="hint">Live hospitals. Jump into any clinic to manage its slots, team or integrations.</p>
+    <div id="activeList"></div>
   </section>
 </div>
 
@@ -49,13 +56,18 @@ async function load(){
       const btn = ready
         ? `<button class="btn sm" type="button" data-slug="${p.slug}" data-ready="1">Approve go-live</button>`
         : `<button class="btn sm dark" type="button" data-slug="${p.slug}" data-ready="0">Force go-live (override)</button>`;
+      const manage = `<span class="muted" style="font-size:.74rem">Manage:
+        <a href="/appointments/${p.slug}/slots">Slots</a> ·
+        <a href="/appointments/${p.slug}/doctor">Queue</a> ·
+        <a href="/appointments/${p.slug}/users">Team</a> ·
+        <a href="/appointments/${p.slug}/admin">Integrations</a></span>`;
       return `<div class="kv" style="align-items:flex-start">
         <span>
           <b>${p.name}</b><br>
           <span class="muted">tovaitech.in/appointments/${p.slug}</span><br>
           <span class="muted" style="font-size:.74rem">${contact}</span>
           <span class="pill ${ready?'g':'a'}" style="margin-left:6px">${ready?'mandatory met':'checklist incomplete'}</span>
-          ${todoLine}
+          ${todoLine}<br>${manage}
         </span>
         ${btn}
       </div>`;
@@ -78,12 +90,64 @@ async function approve(slug, btn){
       body:JSON.stringify({slug, reason:'provider approved'})});
     const d = await r.json();
     if(!r.ok){ showError((d.error && d.error.message) || 'Approve failed'); btn.disabled=false; btn.textContent='Approve go-live'; return; }
-    load();
+    // Surface the auto-created clinic_admin credentials ONCE so the provider can hand them over.
+    if(d.clinic_admin && d.clinic_admin.temp_password){
+      $('#approveResult').innerHTML = `<div class="result ok" id="adminCreds">Approved <b>${slug}</b>.
+        Clinic admin login (share securely, shown once): <b class="cred-email">${d.clinic_admin.email}</b>
+        <div class="snippet cred-temp" style="margin-top:6px">${d.clinic_admin.temp_password}</div></div>`;
+    } else {
+      $('#approveResult').innerHTML = `<div class="result ok">Approved <b>${slug}</b> — it now appears under Active clinics.</div>`;
+    }
+    load(); loadActive();
   }catch(e){ showError('Network error.'); btn.disabled=false; btn.textContent='Approve go-live'; }
+}
+
+async function loadActive(){
+  try{
+    const r = await authFetch(`${API}/onboarding/clinics`);   // live clinics (superadmin only)
+    if(!r.ok){ if(r.status===403) $('#activeList').innerHTML='<p class="muted" style="padding:8px 0">Platform admin only.</p>'; return; }
+    const clinics = (await r.json()).clinics || [];
+    $('#activeCount').textContent = clinics.length;
+    $('#activeList').innerHTML = clinics.length ? clinics.map(c=>`
+      <div class="kv" style="align-items:flex-start">
+        <span>
+          <b>${c.name}</b> <span class="pill g" style="margin-left:6px">live</span><br>
+          <span class="muted">tovaitech.in/appointments/${c.slug}</span><br>
+          <span class="muted" style="font-size:.74rem">Manage:
+            <a href="/appointments/${c.slug}/slots">Slots</a> ·
+            <a href="/appointments/${c.slug}/doctor">Queue</a> ·
+            <a href="/appointments/${c.slug}/users">Team</a> ·
+            <a href="/appointments/${c.slug}/admin">Integrations</a></span>
+          <div class="cred" data-slug="${c.slug}" style="margin-top:6px"></div>
+        </span>
+        <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <button class="btn ghost sm" data-reveal="${c.slug}" type="button">Reveal admin login</button>
+          <a class="btn ghost sm" href="/appointments/${c.slug}" target="_blank" rel="noopener">View booking page</a>
+        </span>
+      </div>`).join('') : '<p class="muted" style="padding:8px 0">No active clinics yet.</p>';
+    $('#activeList').querySelectorAll('[data-reveal]').forEach(b=>{
+      b.onclick = ()=>revealAdmin(b.getAttribute('data-reveal'), b);
+    });
+  }catch(e){}
+}
+
+async function revealAdmin(slug, btn){
+  clearError(); btn.disabled = true; btn.textContent = 'Resetting…';
+  try{
+    const r = await authFetch(`${API}/onboarding/clinic/${encodeURIComponent(slug)}/admin-credentials`, {method:'POST'});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error&&d.error.message)||'Could not reveal admin login'); btn.disabled=false; btn.textContent='Reveal admin login'; return; }
+    const box = document.querySelector(`.cred[data-slug="${slug}"]`);
+    box.innerHTML = `<div class="result ok">Clinic admin: <b>${d.clinic_admin.login}</b>
+      <div class="snippet" style="margin-top:4px">${d.clinic_admin.temp_password}</div>
+      <span class="muted" style="font-size:.72rem">New temporary password — they’ll set their own on next login.</span></div>`;
+    btn.disabled = false; btn.textContent = 'Reset again';
+  }catch(e){ showError('Network error.'); btn.disabled=false; btn.textContent='Reveal admin login'; }
 }
 
 requireLogin();
 load();
+loadActive();
 </script>
 </body>
 </html>

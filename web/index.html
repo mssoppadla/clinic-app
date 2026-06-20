@@ -64,6 +64,12 @@
       <label data-k="Mobile number">Mobile number</label>
       <input class="input" id="phone" inputmode="tel" autocomplete="tel" placeholder="+91 ..." />
     </div>
+    <!-- WhatsApp OTP verification (slice 2d): confirm the patient owns this number -->
+    <div class="field hidden" id="otpField">
+      <label data-k="Enter the code we sent on WhatsApp">Enter the code we sent on WhatsApp</label>
+      <input class="input" id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" />
+      <p class="note" id="otpHint" style="margin-top:6px"></p>
+    </div>
     <div class="field">
       <label data-k="Reason for visit">Reason for visit <span class="muted">(optional)</span></label>
       <input class="input" id="reason" placeholder="e.g. fever, follow-up" />
@@ -251,8 +257,44 @@ function gotoDetails(){
 }
 
 $('#addPatient').onclick = ()=>{ const p=$('#patients'); if(p.children.length<3){ p.appendChild(patientBlock()); applyLabels(); } };
+// editing the number invalidates any prior WhatsApp-OTP verification
+$('#phone').addEventListener('input', ()=>{
+  if($('#phone').value.trim() !== OTP_SENT_FOR){
+    OTP_SENT_FOR=null; PHONE_VERIFIED=null; PATIENT_TOKEN=null;
+    $('#otpField').classList.add('hidden');
+    const b=$('#confirmBtn'); b.textContent = b.getAttribute('data-k') || 'Book appointment';
+  }
+});
 $('#backToChoose').onclick = ()=>{ hide('#details'); show('#schedule'); };
 $('#againBtn').onclick = ()=>{ location.reload(); };
+
+// WhatsApp-OTP gate (slice 2d): the patient must prove they own the number — via a
+// WhatsApp code only (we never send SMS / mobile-network OTP). Once verified for a given
+// number, we keep the patient token and don't re-challenge.
+let OTP_SENT_FOR = null, PHONE_VERIFIED = null, PATIENT_TOKEN = null;
+
+async function sendPatientOtp(phone){
+  const r = await fetch(`${API}/auth/otp/request`, {
+    method:'POST', headers:{'Content-Type':'application/json','X-Clinic-Slug':SLUG},
+    body: JSON.stringify({ phone })
+  });
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error((d.error && d.error.message) || 'Could not send the WhatsApp code');
+  OTP_SENT_FOR = phone;
+  $('#otpField').classList.remove('hidden');
+  $('#otpHint').textContent = 'We sent a 6-digit code on WhatsApp to '+phone+'.';
+  $('#otp').value=''; $('#otp').focus();
+}
+
+async function verifyPatientOtp(phone, code){
+  const r = await fetch(`${API}/auth/otp/verify`, {
+    method:'POST', headers:{'Content-Type':'application/json','X-Clinic-Slug':SLUG},
+    body: JSON.stringify({ phone, otp: code })
+  });
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error((d.error && d.error.message) || 'Invalid or expired code');
+  PHONE_VERIFIED = phone; PATIENT_TOKEN = d.access_token;
+}
 
 $('#confirmBtn').onclick = async ()=>{
   clearError();
@@ -261,7 +303,23 @@ $('#confirmBtn').onclick = async ()=>{
   if(!names.length){ showError('Enter at least one patient name'); return; }
   if(!phone){ showError('Enter your mobile number'); return; }
   if(!$('#consent').checked){ showError('Please accept consent to continue'); return; }
-  const btn = $('#confirmBtn'); btn.disabled=true;
+  const btn = $('#confirmBtn');
+
+  // Step A: number not yet verified — send (or re-send) a WhatsApp code and wait for it.
+  if(PHONE_VERIFIED !== phone){
+    btn.disabled=true;
+    try{
+      if(OTP_SENT_FOR !== phone){
+        await sendPatientOtp(phone);
+        btn.textContent = 'Verify & book'; btn.disabled=false; return;
+      }
+      const code = $('#otp').value.trim();
+      if(!/^\d{6}$/.test(code)){ showError('Enter the 6-digit WhatsApp code'); btn.disabled=false; return; }
+      await verifyPatientOtp(phone, code);
+    }catch(e){ showError(e.message); btn.disabled=false; return; }
+  }
+
+  btn.disabled=true;
   try{
     const idem = 'web-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
     const r = await fetch(`${API}/bookings`, {
@@ -279,6 +337,7 @@ $('#confirmBtn').onclick = async ()=>{
     $('#tokenCode').textContent = 'Track code: '+t.short_code;
     if(t.eta) $('#tokenEta').textContent = 'Approx time: '+ new Date(t.eta).toLocaleTimeString();
     hide('#details'); show('#confirmed'); applyLabels();
+    load();   // refresh live stats (queue count / availability) so the page reflects this booking
   }catch(e){ showError('Network error: '+e.message); btn.disabled=false; }
 };
 

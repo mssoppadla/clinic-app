@@ -12,11 +12,32 @@
 <body>
 <div class="top">
   <div class="brandlogo">T</div>
-  <div><h1>Appointment slots</h1><p>Clinic staff · create bookable slots</p></div>
+  <div><h1>Appointment slots</h1><p id="clinicTag">Clinic staff · create bookable slots</p></div>
 </div>
 
 <div class="adminwrap">
   <div id="error" class="err hidden"></div>
+  <p class="hint" style="margin:0 0 10px"><a id="queueLink" href="#">→ Live queue &amp; today's patients</a></p>
+
+  <section class="card" id="doctorsCard">
+    <div class="cardhead"><h3>Doctors</h3></div>
+    <p class="hint">Add the doctors who see patients here — including ad-hoc / visiting doctors who
+      cover some slots. They appear in the slot picker below straight away. Do this
+      <b>before go-live</b> so the clinic is fully set up before it opens.</p>
+    <div class="grid2">
+      <div class="field"><label>Doctor name</label><input class="input" id="newDocName" placeholder="e.g. Dr. Anita Menon"/></div>
+      <div class="field"><label>Specialty <span class="muted">(optional)</span></label><input class="input" id="newDocSpecialty" placeholder="e.g. General medicine"/></div>
+    </div>
+    <p class="hint">Give the doctor a login (optional) so they can manage their own schedule, slot
+      capacity and leave. Leave blank for a visiting doctor with no login.</p>
+    <div class="grid2">
+      <div class="field"><label>Login email <span class="muted">(optional)</span></label><input class="input" id="newDocEmail" type="email" placeholder="doctor@clinic.in"/></div>
+      <div class="field"><label>or Username <span class="muted">(optional)</span></label><input class="input" id="newDocUsername" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. dranita"/></div>
+    </div>
+    <div class="field"><label>WhatsApp phone <span class="muted">(for OTP reset)</span></label><input class="input" id="newDocPhone" inputmode="tel" placeholder="+91 ..."/></div>
+    <button class="btn" id="addDocBtn" type="button">Add doctor</button>
+    <div id="addDocResult"></div>
+  </section>
 
   <section class="card">
     <div class="cardhead"><h3>Generate slots</h3></div>
@@ -34,7 +55,10 @@
       <div class="field"><label>Slot length (minutes)</label><input class="input" id="slot_minutes" inputmode="numeric" value="30"/></div>
       <div class="field"><label>Capacity per slot</label><input class="input" id="capacity" inputmode="numeric" value="1"/></div>
     </div>
-    <button class="btn" id="genBtn" type="button">Generate slots</button>
+    <div class="grid2">
+      <button class="btn" id="genBtn" type="button">Generate slots</button>
+      <button class="btn ghost" id="leaveBtn" type="button" title="Close this doctor's open slots for the chosen day">On leave this day</button>
+    </div>
     <div id="genResult"></div>
   </section>
 
@@ -51,16 +75,57 @@ const $ = s => document.querySelector(s);
 const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); window.scrollTo(0,0); };
 const clearError = () => $('#error').classList.add('hidden');
 
-async function loadDoctors(){
+let ME = { can_manage_all: true, doctor_id: null };   // self-service scope (set by loadDoctors)
+
+async function loadDoctors(selectId){
   try{
     const r = await authFetch(`${API}/slots/doctors`);
     if(!r.ok) return;
-    const docs = (await r.json()).doctors || [];
-    $('#doctor').innerHTML = docs.length
-      ? docs.map(d=>`<option value="${d.id}">${d.name}${d.specialty?' · '+d.specialty:''}</option>`).join('')
-      : '<option value="">No doctors yet — add one in onboarding</option>';
+    const data = await r.json();
+    const docs = data.doctors || [];
+    ME = data.me || ME;
+    // a doctor (not an admin) manages only their own profile: hide "add doctor", lock the picker
+    if(!ME.can_manage_all){
+      $('#doctorsCard').classList.add('hidden');
+      const mine = docs.filter(d=>d.id===ME.doctor_id);
+      $('#doctor').innerHTML = mine.length
+        ? mine.map(d=>`<option value="${d.id}">${d.name}${d.specialty?' · '+d.specialty:''}</option>`).join('')
+        : '<option value="">Your doctor profile isn’t set up yet</option>';
+      $('#doctor').disabled = true;
+    } else {
+      $('#doctor').innerHTML = docs.length
+        ? docs.map(d=>`<option value="${d.id}">${d.name}${d.has_login?'':' · (no login)'}${d.specialty?' · '+d.specialty:''}</option>`).join('')
+        : '<option value="">No doctors yet — add one above</option>';
+      if(selectId) $('#doctor').value = selectId;
+    }
+    loadSlots();
   }catch(e){}
 }
+
+$('#addDocBtn').onclick = async ()=>{
+  clearError(); $('#addDocResult').innerHTML='';
+  const name = $('#newDocName').value.trim();
+  if(name.length < 2){ showError('Enter the doctor’s name.'); return; }
+  const body = { name, specialty: $('#newDocSpecialty').value.trim() || null,
+    email: $('#newDocEmail').value.trim() || null,
+    username: $('#newDocUsername').value.trim() || null,
+    phone: $('#newDocPhone').value.trim() || null };
+  $('#addDocBtn').disabled = true;
+  try{
+    const r = await authFetch(`${API}/slots/doctors`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error&&d.error.message)||'Could not add doctor'); return; }
+    const loginNote = d.login
+      ? ` Login created — temporary password (share securely, shown once):
+          <div class="snippet" style="margin-top:6px">${d.login.temp_password}</div>
+          They sign in at this page’s URL and set their own password.`
+      : ' (no login — visiting doctor).';
+    $('#addDocResult').innerHTML = `<div class="result ok" style="margin-top:10px">Added <b>${d.name}</b>.${loginNote}</div>`;
+    ['#newDocName','#newDocSpecialty','#newDocEmail','#newDocUsername','#newDocPhone'].forEach(s=>$(s).value='');
+    loadDoctors(d.id);   // refresh picker and select the new doctor
+  }catch(e){ showError('Network error.'); }
+  finally{ $('#addDocBtn').disabled = false; }
+};
 
 async function loadSlots(){
   const doctor = $('#doctor').value, date = $('#date').value;
@@ -72,9 +137,11 @@ async function loadSlots(){
     $('#count').textContent = slots.length;
     $('#list').innerHTML = slots.length ? slots.map(s=>{
       const t = new Date(s.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const closed = s.status!=='open';
       const full = s.available<=0;
-      return `<div class="kv"><span><b>${t}</b> <span class="muted">cap ${s.capacity} · booked ${s.booked}</span></span>
-        <span class="pill ${full?'r':'g'}">${full?'full':s.available+' free'}</span></div>`;
+      const pill = closed ? '<span class="pill n">on leave</span>'
+        : `<span class="pill ${full?'r':'g'}">${full?'full':s.available+' free'}</span>`;
+      return `<div class="kv"><span><b>${t}</b> <span class="muted">cap ${s.capacity} · booked ${s.booked}</span></span>${pill}</div>`;
     }).join('') : '<p class="muted" style="padding:8px 0">No slots for this day yet.</p>';
   }catch(e){}
 }
@@ -95,12 +162,35 @@ $('#genBtn').onclick = async ()=>{
   }catch(e){ showError('Network error.'); }
   finally{ $('#genBtn').disabled = false; }
 };
+$('#leaveBtn').onclick = async ()=>{
+  clearError(); $('#genResult').innerHTML='';
+  const doctor_id = $('#doctor').value, date = $('#date').value;
+  if(!doctor_id || !date){ showError('Pick a doctor and a date.'); return; }
+  if(!confirm('Mark this doctor on leave for '+date+'? Their open (unbooked) slots that day will be closed.')) return;
+  $('#leaveBtn').disabled = true;
+  try{
+    const r = await authFetch(`${API}/slots/leave`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({doctor_id, date})});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error&&d.error.message)||'Could not set leave'); return; }
+    const note = d.still_booked ? ` ${d.still_booked} already-booked slot(s) were kept — cancel or reschedule those.` : '';
+    $('#genResult').innerHTML = `<div class="result ok" style="margin-top:10px">On leave ${d.date}: closed ${d.closed} open slot(s).${note}</div>`;
+    loadSlots();
+  }catch(e){ showError('Network error.'); }
+  finally{ $('#leaveBtn').disabled = false; }
+};
 $('#doctor').addEventListener('change', loadSlots);
 $('#date').addEventListener('change', loadSlots);
 
+// guard: this page must be opened for a specific clinic (/appointments/<slug>/slots)
+if(!window.CLINIC_SLUG){
+  showError('Open this page from your clinic’s admin area — e.g. /appointments/<your-clinic>/slots');
+} else {
+  $('#clinicTag').textContent = 'Clinic: ' + window.CLINIC_SLUG + ' · create bookable slots';
+  $('#queueLink').href = `/appointments/${window.CLINIC_SLUG}/doctor`;
+}
 requireLogin();
 const today = new Date(); $('#date').value = today.toISOString().slice(0,10);
-loadDoctors();
+if(window.CLINIC_SLUG) loadDoctors();
 </script>
 </body>
 </html>

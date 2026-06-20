@@ -27,7 +27,7 @@ class BhashiniClient:
     def localize(self, *, tenant_id: str, keys: dict[str, str], target_lang: str) -> dict[str, str]:
         if target_lang == "en":
             return keys
-        cfg = get_effective("bhashini")
+        cfg = get_effective("bhashini", tenant_id=tenant_id)
         if cfg.get("mode") != "live" or not cfg.get("api_key"):
             return self._fallback(keys, target_lang)
         try:

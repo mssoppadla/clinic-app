@@ -91,6 +91,10 @@ class Doctor(Base):
     name: Mapped[str] = mapped_column(String(160))
     specialty: Mapped[str] = mapped_column(String(120), default="")
     fee_minor: Mapped[int] = mapped_column(Integer, default=0)
+    # A doctor's login IS their clinical profile: user_id links this profile to the User account
+    # they sign in with (NULL for ad-hoc/visiting doctors who have no login). When set, that user
+    # can sign in and manage THIS profile's own schedule, slot capacity and leave.
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
@@ -166,6 +170,7 @@ class Booking(Base):
     primary_patient_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     doctor_id: Mapped[str] = mapped_column(String(36), index=True)
     session_id: Mapped[str] = mapped_column(String(36), index=True)
+    slot_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # set for slot bookings
     channel: Mapped[str] = mapped_column(String(20), default="online")
     status: Mapped[str] = mapped_column(String(20), default="confirmed")
     party_size: Mapped[int] = mapped_column(Integer, default=1)
