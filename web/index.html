@@ -33,17 +33,25 @@
     <p class="foot">English always · + <span lang="ml">മലയാളം</span> if clinic enables <span class="cfg">⚙</span></p>
   </section>
 
-  <!-- SCREEN 2: choose how to book (mock step 2) -->
+  <!-- SCREEN 2: choose a doctor -->
   <section id="choose" class="card hidden">
     <h3 id="chooseTitle">Choose a doctor</h3>
-    <h4 class="muted" style="margin:2px 0 10px">Join today's running queue</h4>
+    <h4 class="muted" style="margin:2px 0 10px">Tap a doctor to book</h4>
     <div id="doctors"></div>
-    <p class="note">Pick a free slot — <span class="cfg">⚙ coming soon</span></p>
-    <div class="chips">
-      <span class="chip off">10:00</span><span class="chip off">10:30</span>
-      <span class="chip off">11:00</span><span class="chip off">11:30</span>
-    </div>
     <button class="btn ghost" id="backToLanding" type="button" style="margin-top:12px">Back</button>
+  </section>
+
+  <!-- SCREEN 2b: pick a slot or join the queue -->
+  <section id="schedule" class="card hidden">
+    <h3 id="schedDoctor">Book appointment</h3>
+    <div class="livecard" id="joinQueueCard">
+      <div><b>Join today's running queue</b><div class="meta" id="queueMeta">walk-in token</div></div>
+      <span class="pill g">live</span>
+    </div>
+    <p class="note" style="margin-top:10px">or pick a time slot</p>
+    <div class="chips" id="dayTabs"></div>
+    <div id="slotGroups"></div>
+    <button class="btn ghost" id="backToChooseFromSched" type="button" style="margin-top:12px">Back</button>
   </section>
 
   <!-- SCREEN 3: details (mock step 3) -->
@@ -55,6 +63,12 @@
     <div class="field" style="margin-top:12px">
       <label data-k="Mobile number">Mobile number</label>
       <input class="input" id="phone" inputmode="tel" autocomplete="tel" placeholder="+91 ..." />
+    </div>
+    <!-- WhatsApp OTP verification (slice 2d): confirm the patient owns this number -->
+    <div class="field hidden" id="otpField">
+      <label data-k="Enter the code we sent on WhatsApp">Enter the code we sent on WhatsApp</label>
+      <input class="input" id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" />
+      <p class="note" id="otpHint" style="margin-top:6px"></p>
     </div>
     <div class="field">
       <label data-k="Reason for visit">Reason for visit <span class="muted">(optional)</span></label>
@@ -87,7 +101,7 @@ const Q = new URLSearchParams(location.search);
 const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
 const _pm = location.pathname.match(/\/appointments\/([^/?#]+)/);
 const SLUG = Q.get('clinic') || (_pm && decodeURIComponent(_pm[1])) || window.CLINIC_SLUG || '__canary__';
-let LABELS = {en:{}}, LANGS = ['en'], DOCTOR = null, clinic = null;
+let LABELS = {en:{}}, LANGS = ['en'], DOCTOR = null, clinic = null, SLOT = null;
 
 const $ = s => document.querySelector(s);
 const show = id => $(id).classList.remove('hidden');
@@ -174,7 +188,7 @@ async function load(){
       el.innerHTML = `<div><b>${d.name}</b> · <span class="muted">${d.specialty||''} ${fee?'· '+fee:''}</span>
         <div class="meta">Join today's running queue · ~ token #${nextTok} · approx ${approx}</div></div>
         <span class="pill g">live</span>`;
-      el.onclick = ()=>{ DOCTOR=d; gotoDetails(); };
+      el.onclick = ()=>{ DOCTOR=d; gotoSchedule(); };
       dl.appendChild(el);
     });
     applyLabels();
@@ -186,16 +200,101 @@ $('#backToLanding').onclick = ()=>{ hide('#choose'); show('#discovery'); };
 $('#waBtn').onclick = ()=>{ showError('WhatsApp booking is enabled after clinic setup (Phase 0 preview).'); };
 $('#rgBtn').onclick = ()=>{ showError('Reserve with Google is coming in a later phase.'); };
 
+const allHidden = ()=>['#discovery','#choose','#schedule','#details','#confirmed'].forEach(hide);
+const fmtTime = iso => new Date(iso).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+async function gotoSchedule(){
+  clearError(); SLOT=null; allHidden(); show('#schedule');
+  $('#schedDoctor').textContent = 'Book with ' + (DOCTOR ? DOCTOR.name : 'doctor');
+  $('#queueMeta').textContent = `walk-in token · ${clinic.queue_count} in queue · ~${clinic.avg_wait_minutes}m`;
+  $('#dayTabs').innerHTML = '<span class="chip">…</span>'; $('#slotGroups').innerHTML='';
+  try{
+    const r = await fetch(`${API}/clinics/${encodeURIComponent(SLUG)}/availability/days?doctor=${encodeURIComponent(DOCTOR.id)}`);
+    const days = (await r.json()).days || [];
+    const tabs = $('#dayTabs'); tabs.innerHTML='';
+    days.forEach((d,i)=>{
+      const c = document.createElement('span');
+      c.className = 'chip' + (d.available? '' : ' off');
+      c.innerHTML = `${d.label}<br><span style="font-size:.7em">${d.available? d.available+' slots':'no slots'}</span>`;
+      if(d.available) c.onclick = ()=>{ tabs.querySelectorAll('.chip').forEach(x=>x.classList.remove('on')); c.classList.add('on'); loadDaySlots(d.date); };
+      tabs.appendChild(c);
+    });
+    const first = days.find(d=>d.available);
+    if(first){ tabs.querySelectorAll('.chip')[days.indexOf(first)].classList.add('on'); loadDaySlots(first.date); }
+    else $('#slotGroups').innerHTML = '<p class="note">No slots available — join the running queue above.</p>';
+  }catch(e){ $('#slotGroups').innerHTML = '<p class="note">Could not load slots.</p>'; }
+}
+
+async function loadDaySlots(date){
+  $('#slotGroups').innerHTML = '<p class="note">Loading…</p>';
+  const r = await fetch(`${API}/clinics/${encodeURIComponent(SLUG)}/availability?doctor=${encodeURIComponent(DOCTOR.id)}&date=${date}`);
+  const slots = (await r.json()).slots || [];
+  const groups = {Morning:[], Afternoon:[], Evening:[]};
+  slots.forEach(s=>{ const h=new Date(s.start).getHours(); (h<12?groups.Morning:h<16?groups.Afternoon:groups.Evening).push(s); });
+  const wrap = $('#slotGroups'); wrap.innerHTML='';
+  let any=false;
+  Object.entries(groups).forEach(([period, list])=>{
+    if(!list.length) return; any=true;
+    const h=document.createElement('h4'); h.className='muted'; h.style.margin='12px 0 4px'; h.textContent=period; wrap.appendChild(h);
+    const row=document.createElement('div'); row.className='chips';
+    list.forEach(s=>{ const c=document.createElement('span'); c.className='chip on'; c.textContent=s.label;
+      c.onclick=()=>{ SLOT={id:s.id, label:s.label, date}; gotoDetails(); }; row.appendChild(c); });
+    wrap.appendChild(row);
+  });
+  if(!any) wrap.innerHTML='<p class="note">No slots for this day.</p>';
+}
+
+$('#joinQueueCard').onclick = ()=>{ SLOT=null; gotoDetails(); };
+$('#backToChooseFromSched').onclick = ()=>{ hide('#schedule'); show('#choose'); };
+
 function gotoDetails(){
-  clearError(); hide('#discovery'); hide('#choose'); hide('#confirmed'); show('#details');
-  $('#detailsDoctor').textContent = DOCTOR ? (DOCTOR.name + (DOCTOR.specialty? ' · '+DOCTOR.specialty : '')) : 'Your details';
+  clearError(); allHidden(); show('#details');
+  const when = SLOT ? `Slot · ${SLOT.label} (${SLOT.date})` : "Join today's running queue";
+  $('#detailsDoctor').textContent = (DOCTOR ? DOCTOR.name : 'Your details');
+  $('#details h4').textContent = when;
   const p = $('#patients'); p.innerHTML=''; p.appendChild(patientBlock());
   applyLabels();
 }
 
 $('#addPatient').onclick = ()=>{ const p=$('#patients'); if(p.children.length<3){ p.appendChild(patientBlock()); applyLabels(); } };
-$('#backToChoose').onclick = ()=>{ hide('#details'); show('#choose'); };
+// editing the number invalidates any prior WhatsApp-OTP verification
+$('#phone').addEventListener('input', ()=>{
+  if($('#phone').value.trim() !== OTP_SENT_FOR){
+    OTP_SENT_FOR=null; PHONE_VERIFIED=null; PATIENT_TOKEN=null;
+    $('#otpField').classList.add('hidden');
+    const b=$('#confirmBtn'); b.textContent = b.getAttribute('data-k') || 'Book appointment';
+  }
+});
+$('#backToChoose').onclick = ()=>{ hide('#details'); show('#schedule'); };
 $('#againBtn').onclick = ()=>{ location.reload(); };
+
+// WhatsApp-OTP gate (slice 2d): the patient must prove they own the number — via a
+// WhatsApp code only (we never send SMS / mobile-network OTP). Once verified for a given
+// number, we keep the patient token and don't re-challenge.
+let OTP_SENT_FOR = null, PHONE_VERIFIED = null, PATIENT_TOKEN = null;
+
+async function sendPatientOtp(phone){
+  const r = await fetch(`${API}/auth/otp/request`, {
+    method:'POST', headers:{'Content-Type':'application/json','X-Clinic-Slug':SLUG},
+    body: JSON.stringify({ phone })
+  });
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error((d.error && d.error.message) || 'Could not send the WhatsApp code');
+  OTP_SENT_FOR = phone;
+  $('#otpField').classList.remove('hidden');
+  $('#otpHint').textContent = 'We sent a 6-digit code on WhatsApp to '+phone+'.';
+  $('#otp').value=''; $('#otp').focus();
+}
+
+async function verifyPatientOtp(phone, code){
+  const r = await fetch(`${API}/auth/otp/verify`, {
+    method:'POST', headers:{'Content-Type':'application/json','X-Clinic-Slug':SLUG},
+    body: JSON.stringify({ phone, otp: code })
+  });
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error((d.error && d.error.message) || 'Invalid or expired code');
+  PHONE_VERIFIED = phone; PATIENT_TOKEN = d.access_token;
+}
 
 $('#confirmBtn').onclick = async ()=>{
   clearError();
@@ -204,13 +303,30 @@ $('#confirmBtn').onclick = async ()=>{
   if(!names.length){ showError('Enter at least one patient name'); return; }
   if(!phone){ showError('Enter your mobile number'); return; }
   if(!$('#consent').checked){ showError('Please accept consent to continue'); return; }
-  const btn = $('#confirmBtn'); btn.disabled=true;
+  const btn = $('#confirmBtn');
+
+  // Step A: number not yet verified — send (or re-send) a WhatsApp code and wait for it.
+  if(PHONE_VERIFIED !== phone){
+    btn.disabled=true;
+    try{
+      if(OTP_SENT_FOR !== phone){
+        await sendPatientOtp(phone);
+        btn.textContent = 'Verify & book'; btn.disabled=false; return;
+      }
+      const code = $('#otp').value.trim();
+      if(!/^\d{6}$/.test(code)){ showError('Enter the 6-digit WhatsApp code'); btn.disabled=false; return; }
+      await verifyPatientOtp(phone, code);
+    }catch(e){ showError(e.message); btn.disabled=false; return; }
+  }
+
+  btn.disabled=true;
   try{
     const idem = 'web-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
     const r = await fetch(`${API}/bookings`, {
       method:'POST',
       headers:{'Content-Type':'application/json','X-Clinic-Slug':SLUG,'Idempotency-Key':idem},
-      body: JSON.stringify({ doctor_id: DOCTOR.id, mode:'join_queue',
+      body: JSON.stringify({ doctor_id: DOCTOR.id,
+        mode: SLOT ? 'slot' : 'join_queue', slot_id: SLOT ? SLOT.id : null,
         patients: names.map(n=>({name:n})), contact_phone: phone,
         reason: $('#reason').value.trim() || null, consent:true })
     });
@@ -221,6 +337,7 @@ $('#confirmBtn').onclick = async ()=>{
     $('#tokenCode').textContent = 'Track code: '+t.short_code;
     if(t.eta) $('#tokenEta').textContent = 'Approx time: '+ new Date(t.eta).toLocaleTimeString();
     hide('#details'); show('#confirmed'); applyLabels();
+    load();   // refresh live stats (queue count / availability) so the page reflects this booking
   }catch(e){ showError('Network error: '+e.message); btn.disabled=false; }
 };
 

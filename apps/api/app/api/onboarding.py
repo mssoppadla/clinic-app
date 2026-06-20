@@ -25,8 +25,33 @@ from ..core.db import system_session
 from ..core.errors import AppError
 from ..core import slug as slugmod
 from ..core.security import generate_temp_password, hash_password
-from ..models import Doctor, Session as ClinicSession, Tenant, User, UserRole
-from .deps import require_role
+from datetime import timedelta
+
+from ..models import Doctor, Session as ClinicSession, Slot, Tenant, User, UserRole
+from .deps import optional_current_user, require_role
+
+# default working windows per session label, so onboarding creates REAL bookable timed slots
+# (the same ones the Slots page + patient booking use), not just a queue session. [F7]
+_SESSION_WINDOWS = {"morning": ("09:00", "12:00"), "afternoon": ("14:00", "17:00"),
+                    "evening": ("18:00", "20:00")}
+_DEFAULT_WINDOW = ("09:00", "12:00")
+_ONBOARD_SLOT_MINUTES = 15
+
+
+def _authz_if_live(tenant, caller: dict | None) -> None:
+    """Pre-go-live: open self-serve (by slug). Once LIVE: only the clinic's own admin
+    (clinic_admin of this tenant) or a superadmin may mutate it."""
+    if not tenant.go_live:
+        return
+    roles = (caller or {}).get("roles") or []
+    if any(r.get("role") == "superadmin" for r in roles):
+        return
+    if any(r.get("role") == "clinic_admin" and r.get("tenant_id") == tenant.id for r in roles):
+        return
+    if caller is None:
+        raise AppError("unauthenticated", "Sign in as the clinic admin to change a live clinic.",
+                       status=401)
+    raise AppError("forbidden", "Only this clinic's admin can change it once it's live.", status=403)
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 log = logging.getLogger("onboarding")
@@ -210,28 +235,47 @@ def pending_clinics(_: dict = Depends(require_role("superadmin"))):
 
 
 @router.post("/clinic/{slug}/doctor", status_code=201)
-def add_doctor(slug: str, body: DoctorIn):
-    """Add a doctor + a today session (slots) — completes the mandatory readiness step."""
+def add_doctor(slug: str, body: DoctorIn, caller: dict | None = Depends(optional_current_user)):
+    """Add a doctor + a today session (slots) — completes the mandatory readiness step.
+    Open during onboarding; once the clinic is live, only its admin/superadmin may add."""
     with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
         if tenant is None:
             raise AppError("tenant_not_found", f"No clinic for slug '{slug}'", status=404)
+        _authz_if_live(tenant, caller)
         doctor = Doctor(tenant_id=tenant.id, name=body.name.strip(),
                         specialty=(body.specialty or "").strip(),
                         fee_minor=int(round((body.fee_inr or 0) * 100)))
         db.add(doctor)
         db.flush()
         today = datetime.now(timezone.utc)
+        date_str = today.strftime("%Y-%m-%d")
         session = ClinicSession(
-            tenant_id=tenant.id, doctor_id=doctor.id, date=today.strftime("%Y-%m-%d"),
+            tenant_id=tenant.id, doctor_id=doctor.id, date=date_str,
             label=(body.session_label or "Morning"),
             start_ts=today.replace(hour=9, minute=0, second=0, microsecond=0),
             capacity=body.capacity or get_settings().default_session_capacity,
         )
         db.add(session)
         db.flush()
-        log.info("onboarding.add_doctor slug=%s doctor=%s", slug, body.name)
-        return {"doctor_id": doctor.id, "session_id": session.id,
+        # Generate REAL bookable timed slots for the session window so the doctor is immediately
+        # bookable AND shows on the Slots management page (one consistent "slot" everywhere).
+        start_s, end_s = _SESSION_WINDOWS.get((body.session_label or "").strip().lower(), _DEFAULT_WINDOW)
+        sh, sm = (int(x) for x in start_s.split(":"))
+        eh, em = (int(x) for x in end_s.split(":"))
+        base = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        t = base.replace(hour=sh, minute=sm)
+        end_dt = base.replace(hour=eh, minute=em)
+        slots_made = 0
+        while t + timedelta(minutes=_ONBOARD_SLOT_MINUTES) <= end_dt:
+            e = t + timedelta(minutes=_ONBOARD_SLOT_MINUTES)
+            db.add(Slot(tenant_id=tenant.id, doctor_id=doctor.id, session_id=session.id,
+                        date=date_str, start_ts=t, end_ts=e, capacity=1, booked=0, status="open"))
+            slots_made += 1
+            t = e
+        db.flush()
+        log.info("onboarding.add_doctor slug=%s doctor=%s slots=%s", slug, body.name, slots_made)
+        return {"doctor_id": doctor.id, "session_id": session.id, "slots_created": slots_made,
                 "readiness": _readiness(db, tenant)}
 
 
@@ -247,12 +291,13 @@ def get_appearance(slug: str):
 
 
 @router.post("/appearance")
-def save_appearance(body: AppearanceIn):
-    """Save on-screen appearance (colors, logo, text, header). Merges over existing."""
+def save_appearance(body: AppearanceIn, caller: dict | None = Depends(optional_current_user)):
+    """Save on-screen appearance. Open during onboarding; once live, clinic admin/superadmin only."""
     with system_session() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == body.slug).first()
         if tenant is None:
             raise AppError("tenant_not_found", f"No clinic for slug '{body.slug}'", status=404)
+        _authz_if_live(tenant, caller)
         merged = {**(tenant.branding or {}), **_clean_branding(body.branding)}
         tenant.branding = merged
         log.info("onboarding.appearance slug=%s keys=%s", body.slug, list(merged.keys()))
@@ -289,3 +334,35 @@ def approve_go_live(body: OverrideIn, _: dict = Depends(require_role("superadmin
 
         return {"slug": tenant.slug, "status": tenant.status, "go_live": tenant.go_live,
                 "clinic_admin": created_admin}
+
+
+@router.post("/clinic/{slug}/admin-credentials")
+def reset_clinic_admin_credentials(slug: str, _: dict = Depends(require_role("superadmin"))):
+    """Platform-admin recovery: (re)generate and REVEAL a working clinic-admin login for a clinic.
+    Passwords are stored hashed and can't be read back, so this issues a fresh temporary password
+    (forced reset on next login). Superadmin only. Other staff/doctor logins are created elsewhere."""
+    with system_session() as db:
+        tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
+        if tenant is None:
+            raise AppError("tenant_not_found", f"No clinic for slug '{slug}'", status=404)
+        role = db.query(UserRole).filter(UserRole.tenant_id == tenant.id,
+                                         UserRole.role == "clinic_admin").first()
+        if role is not None:
+            u = db.query(User).filter(User.id == role.user_id).first()
+        else:
+            email = (tenant.contact_email or "").strip().lower()
+            if not (email and "@" in email):
+                raise AppError("no_contact_email",
+                               "This clinic has no contact email to create an admin from.", status=422)
+            u = db.query(User).filter(User.email == email).first()
+            if u is None:
+                u = User(email=email, phone=tenant.contact_phone, password_hash="",
+                         status="active", must_reset_password=True)
+                db.add(u); db.flush()
+            db.add(UserRole(user_id=u.id, tenant_id=tenant.id, role="clinic_admin"))
+        temp = generate_temp_password()
+        u.password_hash = hash_password(temp)
+        u.must_reset_password = True
+        u.status = "active"
+        log.info("onboarding.reset_clinic_admin slug=%s", slug)
+        return {"slug": slug, "clinic_admin": {"login": u.email or u.username, "temp_password": temp}}

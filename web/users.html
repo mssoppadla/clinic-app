@@ -12,7 +12,7 @@
 <body>
 <div class="top">
   <div class="brandlogo">T</div>
-  <div><h1>Team &amp; users</h1><p>Clinic admin · staff accounts</p></div>
+  <div><h1>Team &amp; users</h1><p id="clinicTag">Clinic admin · staff accounts</p></div>
 </div>
 
 <div class="adminwrap">
@@ -24,6 +24,8 @@
       their own password on first sign-in (or reset it via WhatsApp OTP).</p>
     <p class="hint">Provide an <b>email or a username</b> (either is fine — many clinics have no
       official email). Phone is used for WhatsApp OTP password reset.</p>
+    <p class="hint">Adding a <b>doctor</b>? Do it on the <b>Slots</b> page — a doctor’s login and
+      their clinical profile are the same record, so they’re created together there.</p>
     <div class="grid2">
       <div class="field"><label>Email <span class="muted">(optional)</span></label>
         <input class="input" id="email" type="email" placeholder="person@clinic.in"/></div>
@@ -35,14 +37,11 @@
         <input class="input" id="phone" inputmode="tel" placeholder="+91 ..."/></div>
       <div class="field"><label>Role</label>
         <select class="select" id="role">
-          <option value="doctor">Doctor</option>
           <option value="front_desk">Front desk</option>
           <option value="triage">Triage</option>
           <option value="clinic_admin">Clinic admin</option>
         </select></div>
     </div>
-    <div class="field hidden" id="clinicField"><label>Clinic <span class="muted">(platform admin)</span></label>
-      <select class="select" id="tenant_id"><option value="">Select a clinic…</option></select></div>
     <button class="btn" id="addBtn" type="button">Create user</button>
     <div id="created"></div>
   </section>
@@ -60,13 +59,16 @@ const $ = s => document.querySelector(s);
 const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); window.scrollTo(0,0); };
 const clearError = () => $('#error').classList.add('hidden');
 const ROLE_LABEL = {superadmin:'Platform admin', clinic_admin:'Clinic admin', doctor:'Doctor', front_desk:'Front desk', triage:'Triage'};
+let TENANT_ID = '';   // the clinic this page manages (resolved from the URL slug)
 
 async function load(){
   clearError();
   try{
     const r = await authFetch(`${API}/users`);
     if(!r.ok){ if(r.status!==401) showError('Could not load users.'); return; }
-    const rows = (await r.json()).users || [];
+    let rows = (await r.json()).users || [];
+    // hospital-specific: show only THIS clinic's team (a superadmin's /users returns all clinics)
+    if(TENANT_ID) rows = rows.filter(u => (u.roles||[]).some(x => x.tenant_id === TENANT_ID));
     $('#count').textContent = rows.length;
     $('#list').innerHTML = rows.length ? rows.map(u=>{
       const roles = (u.roles||[]).map(x=>ROLE_LABEL[x.role]||x.role).join(', ');
@@ -99,7 +101,7 @@ $('#addBtn').onclick = async ()=>{
   const body = { phone: $('#phone').value.trim()||null, role: $('#role').value };
   if(email) body.email = email;
   if(username) body.username = username;
-  const tid = $('#tenant_id').value.trim(); if(tid) body.tenant_id = tid;
+  if(TENANT_ID) body.tenant_id = TENANT_ID;   // always this clinic (from the URL)
   $('#addBtn').disabled = true;
   try{
     const r = await authFetch(`${API}/users`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
@@ -115,7 +117,7 @@ $('#addBtn').onclick = async ()=>{
 
 async function reactivate(email, role, tenant, btn){
   clearError(); $('#created').innerHTML=''; btn.disabled=true;
-  const body = { email, role }; if(tenant) body.tenant_id = tenant;
+  const body = { email, role }; if(TENANT_ID || tenant) body.tenant_id = TENANT_ID || tenant;
   try{
     const r = await authFetch(`${API}/users`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     const d = await r.json();
@@ -135,22 +137,25 @@ async function revoke(id, btn){
   }catch(e){ showError('Network error.'); btn.disabled=false; }
 }
 
-async function loadClinics(){
-  // Platform admins get a clinic picker (live clinics). Clinic admins get 403 here and
-  // the picker stays hidden — the backend uses their own clinic.
+async function loadClinic(){
+  // Resolve which hospital this page manages (from the URL slug). Works for that clinic's
+  // admin and for a platform admin acting on the clinic.
   try{
-    const r = await authFetch(`${API}/onboarding/clinics`);
+    const r = await authFetch(`${API}/users/clinic`);
     if(!r.ok) return;
-    const clinics = (await r.json()).clinics || [];
-    const sel = $('#tenant_id');
-    clinics.forEach(c=>{ const o=document.createElement('option'); o.value=c.tenant_id; o.textContent=`${c.name} (${c.slug})`; sel.appendChild(o); });
-    $('#clinicField').classList.remove('hidden');
+    const c = await r.json();
+    TENANT_ID = c.tenant_id;
+    $('#clinicTag').textContent = (c.name || c.slug) + ' · staff accounts';
+    load();   // re-render now that we can filter to this clinic
   }catch(e){}
 }
 
-requireLogin();
-load();
-loadClinics();
+if(!window.CLINIC_SLUG){
+  showError('Open this page from your clinic’s admin area — e.g. /appointments/<your-clinic>/users');
+} else {
+  requireLogin();
+  loadClinic();
+}
 </script>
 </body>
 </html>

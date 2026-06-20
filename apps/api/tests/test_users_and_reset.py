@@ -146,6 +146,25 @@ def test_list_clinics_forbidden_for_clinic_admin(client):
     assert client.get("/onboarding/clinics", headers={"Authorization": f"Bearer {tok}"}).status_code == 403
 
 
+def test_reveal_reset_clinic_admin_credentials(client, superadmin_headers):
+    """A superadmin can always obtain a working clinic-admin login (reset & reveal a temp password),
+    since stored passwords are hashed and can't be read back."""
+    slug = client.post("/onboarding/clinic",
+                       json={"name": "Reveal Clinic", "contact_email": "owner@reveal.com"}).json()["slug"]
+    client.post("/onboarding/override", headers=superadmin_headers, json={"slug": slug})
+    # superadmin reveals (resets) the clinic-admin login on demand
+    r = client.post(f"/onboarding/clinic/{slug}/admin-credentials", headers=superadmin_headers)
+    assert r.status_code == 200, r.text
+    creds = r.json()["clinic_admin"]
+    assert creds["login"] == "owner@reveal.com" and creds["temp_password"]
+    # the revealed password actually works (and forces a reset)
+    login = client.post("/auth/login", json={"identifier": "owner@reveal.com",
+                                            "password": creds["temp_password"]}).json()
+    assert login["must_reset_password"] is True and login["access_token"]
+    # not available to non-superadmins
+    assert client.post(f"/onboarding/clinic/{slug}/admin-credentials").status_code == 401
+
+
 def test_go_live_approval_autocreates_clinic_admin(client, superadmin_headers):
     slug = client.post("/onboarding/clinic",
                        json={"name": "Autocreate Clinic", "contact_email": "owner@auto.com"}).json()["slug"]

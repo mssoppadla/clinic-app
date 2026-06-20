@@ -46,10 +46,15 @@ class Settings(BaseSettings):
     # First/root superadmin, seeded if absent (force password reset on first login).
     superadmin_email: str = ""
     superadmin_password: str = ""
+    # DEV/TEST ONLY: a fixed OTP code testers can always enter to walk the WhatsApp-OTP flows
+    # locally. Honored ONLY when WhatsApp is in stub mode (never when live/prod), so production
+    # codes stay random. Set APP_DEV_OTP_CODE locally; leave empty everywhere else.
+    dev_otp_code: str = ""
 
     # --- queue / ETA (configurable, never hardcoded in logic) ---
     avg_consult_minutes: int = 6
     default_session_capacity: int = 40
+    refund_on_cancel: bool = True   # refund hook: refund a captured fee when a booking is cancelled
 
     # --- integrations: provider mode is swappable (stub now, live when creds arrive) ---
     whatsapp_mode: Literal["stub", "live"] = "stub"

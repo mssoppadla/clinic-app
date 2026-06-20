@@ -3,8 +3,10 @@
 #   /appointments(/)          -> onboarding landing / clinic registration (appointments.html)
 #   /appointments/onboard     -> same registration page (mock's onboarding entry)
 #   /appointments/onboard-admin -> provider go-live approvals (onboard-admin.html; auth Phase 2)
-#   /appointments/admin       -> clinic integrations admin (admin.html)
 #   /appointments/assets/*    -> clinic-app static assets (e.g. styles/app.css)
+#   /appointments/<slug>/admin -> THAT clinic's integrations admin (admin.html; per-clinic creds)
+#   /appointments/<slug>/slots -> THAT clinic's slot management (slots.html)
+#   /appointments/<slug>/users -> THAT clinic's team management (users.html)
 #   /appointments/<clinic-slug> -> patient booking app (index.html; slug read from the path)
 #   (/admin is intentionally NOT handled here — reserved for the company site's future admin)
 #   /api/*                    -> FastAPI (unstripped; app serves routes under /api/v1 via root_path)
@@ -60,6 +62,40 @@
 	handle @userspage {
 		root * /srv/web
 		rewrite * /users.html
+		file_server
+	}
+	# Appointment slot management (clinic staff).
+	@slotspage path /appointments/slots /appointments/slots/
+	handle @slotspage {
+		root * /srv/web
+		rewrite * /slots.html
+		file_server
+	}
+	# Clinic-scoped staff pages: /appointments/<slug>/{admin,slots,users}. Each hospital has its
+	# own staff area; the page reads the slug and the API authorizes the caller against THAT clinic.
+	# These regexp matchers must precede the patient catch-all below (handle = first match wins).
+	@clinicadmin path_regexp ^/appointments/[^/]+/admin/?$
+	handle @clinicadmin {
+		root * /srv/web
+		rewrite * /admin.html
+		file_server
+	}
+	@clinicslots path_regexp ^/appointments/[^/]+/slots/?$
+	handle @clinicslots {
+		root * /srv/web
+		rewrite * /slots.html
+		file_server
+	}
+	@clinicusers path_regexp ^/appointments/[^/]+/users/?$
+	handle @clinicusers {
+		root * /srv/web
+		rewrite * /users.html
+		file_server
+	}
+	@clinicdoctor path_regexp ^/appointments/[^/]+/doctor/?$
+	handle @clinicdoctor {
+		root * /srv/web
+		rewrite * /doctor.html
 		file_server
 	}
 	# Everything else under /appointments/<slug> is a clinic's patient booking page.

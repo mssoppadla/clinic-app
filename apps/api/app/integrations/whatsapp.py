@@ -15,10 +15,16 @@ SENT_STUB: list[dict] = []  # inspectable by tests
 
 class WhatsAppClient:
     def send_template(self, *, tenant_id: str, to_phone: str, template: str, params: dict) -> dict:
-        cfg = get_effective("whatsapp")
+        cfg = get_effective("whatsapp", tenant_id=tenant_id)
         if cfg.get("mode") != "live" or not cfg.get("token"):
             SENT_STUB.append({"tenant_id": tenant_id, "to": to_phone, "template": template, "params": params})
-            log.info("whatsapp stub send", extra={"event": "wa.stub", "tenant_id": tenant_id})
+            # stub mode = dev/test only (prod flips to live). Surface the OTP so local testers
+            # can complete the WhatsApp-OTP flow without a real message; never reached in prod.
+            if params.get("code"):
+                log.info("whatsapp stub send template=%s to=%s OTP=%s", template, to_phone, params["code"],
+                         extra={"event": "wa.stub", "tenant_id": tenant_id})
+            else:
+                log.info("whatsapp stub send", extra={"event": "wa.stub", "tenant_id": tenant_id})
             return {"ok": True, "mode": "stub"}
         try:
             url = f"{cfg['base_url']}/{cfg['phone_number_id']}/messages"

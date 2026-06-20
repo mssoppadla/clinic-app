@@ -91,6 +91,10 @@ class Doctor(Base):
     name: Mapped[str] = mapped_column(String(160))
     specialty: Mapped[str] = mapped_column(String(120), default="")
     fee_minor: Mapped[int] = mapped_column(Integer, default=0)
+    # A doctor's login IS their clinical profile: user_id links this profile to the User account
+    # they sign in with (NULL for ad-hoc/visiting doctors who have no login). When set, that user
+    # can sign in and manage THIS profile's own schedule, slot capacity and leave.
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
@@ -142,6 +146,23 @@ class BookingEvent(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class Slot(Base):
+    """Bookable timed appointment slot (Phase 1). Generated from a window; per-slot capacity.
+    `booked` is incremented under a row lock so concurrent bookings can't oversell [F11c, F21]."""
+    __tablename__ = "slots"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    doctor_id: Mapped[str] = mapped_column(String(36), index=True)
+    session_id: Mapped[str] = mapped_column(String(36), index=True)
+    date: Mapped[str] = mapped_column(String(10))           # YYYY-MM-DD (clinic-local)
+    start_ts: Mapped[datetime] = mapped_column(DateTime)
+    end_ts: Mapped[datetime] = mapped_column(DateTime)
+    capacity: Mapped[int] = mapped_column(Integer, default=1)
+    booked: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open|closed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -149,6 +170,7 @@ class Booking(Base):
     primary_patient_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     doctor_id: Mapped[str] = mapped_column(String(36), index=True)
     session_id: Mapped[str] = mapped_column(String(36), index=True)
+    slot_id: Mapped[str | None] = mapped_column(String(36), nullable=True)  # set for slot bookings
     channel: Mapped[str] = mapped_column(String(20), default="online")
     status: Mapped[str] = mapped_column(String(20), default="confirmed")
     party_size: Mapped[int] = mapped_column(Integer, default=1)

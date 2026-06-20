@@ -12,7 +12,7 @@
 <body>
 <div class="top">
   <div class="brandlogo">⚙</div>
-  <div><h1>Integrations setup</h1><p>Platform / admin · go-live configuration</p></div>
+  <div><h1>Integrations setup</h1><p id="clinicTag">This clinic · WhatsApp &amp; voice configuration</p></div>
 </div>
 
 <div class="adminwrap">
@@ -80,6 +80,7 @@ async function loadStatus(){
     const r = await authFetch(`${API}/admin/integrations/status`);
     if(!r.ok) throw new Error('status '+r.status);
     const s = await r.json();
+    if(s.clinic) $('#clinicTag').textContent = (s.clinic.name || s.clinic.slug) + ' · WhatsApp & voice configuration';
     const wa = s.whatsapp, bh = s.bhashini;
     $('#wa_mode').value = wa.mode; statusPill($('#waStatus'), wa.mode, wa.ready_for_live);
     $('#wa_phone_number_id').value = wa.config.phone_number_id || '';
@@ -133,8 +134,12 @@ $('#bh_test').onclick = async ()=>{
   result('#bh_result', true, '“'+d.source+'” → “'+d.translated+'”' + (d.used_fallback?' (fallback)':' (live)'));
 };
 
-requireLogin();
-loadStatus();
+if(!window.CLINIC_SLUG){
+  showError('Open this page from a clinic’s admin area — e.g. /appointments/<your-clinic>/admin');
+} else {
+  requireLogin();
+  loadStatus();
+}
 </script>
 </body>
 </html>

@@ -13,18 +13,29 @@ import jwt
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from ..core.config import get_settings
 from ..core.db import system_session
 from ..core.errors import AppError
-from ..core.security import (create_access_token, create_refresh_token, decode_token,
-                             generate_otp, hash_password, verify_password)
+from ..core.integration_config import get_effective
+from ..core.security import (create_access_token, create_patient_token, create_refresh_token,
+                             decode_token, generate_otp, hash_password, verify_password)
 from ..integrations import whatsapp
 from ..models import OtpChallenge, User, UserRole
-from .deps import get_current_user
+from .deps import get_current_user, get_tenant
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 log = logging.getLogger("auth")
 _OTP_TTL_MIN = 10
 _OTP_MAX_ATTEMPTS = 5
+
+
+def _new_otp(tenant_id: str | None = None) -> str:
+    """Random 6-digit OTP — UNLESS a dev/test fixed code is configured AND WhatsApp is in stub
+    mode (never live/prod). Lets a tester always enter the same code to walk every OTP flow."""
+    s = get_settings()
+    if s.dev_otp_code and get_effective("whatsapp", tenant_id=tenant_id).get("mode") != "live":
+        return s.dev_otp_code
+    return generate_otp()
 
 
 def _utcnow() -> datetime:
@@ -139,7 +150,7 @@ def forgot_password(body: ForgotIn):
     with system_session() as db:
         u = _find_by_identifier(db, body.ident())
         if u is not None and u.status == "active" and u.phone:
-            code = generate_otp()
+            code = _new_otp()
             db.add(OtpChallenge(user_id=u.id, destination=u.phone, purpose="password_reset",
                                 code_hash=hash_password(code),
                                 expires_at=_utcnow() + timedelta(minutes=_OTP_TTL_MIN)))
@@ -185,3 +196,50 @@ def reset_password(body: ResetIn):
         u.password_hash = hash_password(body.new_password)
         u.must_reset_password = False
         return {"ok": True}
+
+
+# ---- Patient passwordless OTP login [AC8] (per-clinic; OTP over WhatsApp) ----
+
+class OtpRequestIn(BaseModel):
+    phone: str
+
+
+@router.post("/otp/request")
+def patient_otp_request(body: OtpRequestIn, tenant: dict = Depends(get_tenant)):
+    """Send a login OTP to the patient's WhatsApp for THIS clinic (X-Clinic-Slug)."""
+    phone = (body.phone or "").strip()
+    if len(phone) < 6:
+        raise AppError("invalid_phone", "Enter a valid mobile number.", status=422)
+    with system_session() as db:
+        code = _new_otp(tenant["id"])
+        db.add(OtpChallenge(user_id=None, destination=phone,
+                            purpose=f"patient_login:{tenant['id']}", code_hash=hash_password(code),
+                            expires_at=_utcnow() + timedelta(minutes=_OTP_TTL_MIN)))
+        whatsapp().send_template(tenant_id=tenant["id"], to_phone=phone, template="auth_otp",
+                                 params={"code": code, "lang": tenant["languages"][0]})
+        log.info("auth.patient_otp sent tenant=%s", tenant["id"])
+    return {"ok": True, "message": "A verification code has been sent to your WhatsApp."}
+
+
+class OtpVerifyIn(BaseModel):
+    phone: str
+    otp: str
+
+
+@router.post("/otp/verify")
+def patient_otp_verify(body: OtpVerifyIn, tenant: dict = Depends(get_tenant)):
+    phone = (body.phone or "").strip()
+    with system_session() as db:
+        ch = (db.query(OtpChallenge)
+              .filter(OtpChallenge.destination == phone,
+                      OtpChallenge.purpose == f"patient_login:{tenant['id']}",
+                      OtpChallenge.consumed_at.is_(None))
+              .order_by(OtpChallenge.created_at.desc()).first())
+        if ch is None or ch.expires_at < _utcnow() or ch.attempts >= _OTP_MAX_ATTEMPTS:
+            raise AppError("invalid_otp", "Invalid or expired code.", status=400)
+        ch.attempts += 1
+        if not verify_password(body.otp, ch.code_hash):
+            raise AppError("invalid_otp", "Invalid or expired code.", status=400)
+        ch.consumed_at = _utcnow()
+    return {"access_token": create_patient_token(phone=phone, tenant_id=tenant["id"]),
+            "token_type": "bearer", "scope": "patient.self", "phone": phone}

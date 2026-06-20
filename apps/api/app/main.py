@@ -6,7 +6,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import admin, auth, bookings, clinics, health, onboarding, users
+from .api import admin, auth, bookings, clinics, health, onboarding, queue, slots, users
 from .core.config import get_settings
 from .core.errors import AppError, app_error_handler
 from .core.logging import configure_logging
@@ -43,6 +43,8 @@ app.include_router(admin.router)
 app.include_router(onboarding.router)
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(slots.router)
+app.include_router(queue.router)
 
 
 @app.get("/")
