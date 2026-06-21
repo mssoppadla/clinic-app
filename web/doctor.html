@@ -69,6 +69,11 @@ async function loadProfile(){
     $('#docPick').onchange = ()=>{ DOCTOR = docs.find(d=>d.id===$('#docPick').value)||null; renderProfile(); loadQueue(); };
   } else {
     DOCTOR = docs.find(d=>d.id===ME.doctor_id) || null;
+    if(!ME.doctor_id){
+      // backward-compat: a doctor login that isn't linked to a clinical profile yet
+      showError('Your login isn’t linked to a doctor profile yet. Ask your clinic admin to link it on the Slots page (Doctors → Link login).');
+      $('#docSub').textContent = 'Login not linked to a doctor profile';
+    }
   }
   renderProfile();
 }
@@ -80,8 +85,10 @@ function row(p, actions){
   return `<div class="kv"><span><b>${p.token||''}</b> <span class="muted">${p.patient}</span></span><span>${actions}</span></div>`;
 }
 async function loadQueue(){
-  clearError();
   const docId = ME.can_manage_all ? (DOCTOR && DOCTOR.id) : ME.doctor_id;
+  // unlinked doctor login -> keep the profile message, don't hit /queue (would 403)
+  if(!ME.can_manage_all && !docId){ return; }
+  clearError();
   if(ME.can_manage_all && !docId){ $('#waiting').innerHTML='<p class="muted">Pick a doctor.</p>'; return; }
   const qs = docId ? `?doctor=${encodeURIComponent(docId)}` : '';
   const r = await authFetch(`${API}/queue${qs}`);

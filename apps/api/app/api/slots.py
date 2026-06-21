@@ -185,6 +185,51 @@ def add_clinic_doctor(body: NewDoctorIn, ctx: dict = Depends(require_clinic_staf
                 "has_login": login is not None, "login": login}
 
 
+class LinkLoginIn(BaseModel):
+    email: str | None = None
+    username: str | None = None
+
+
+@router.post("/doctors/{doctor_id}/link-login")
+def link_doctor_login(doctor_id: str, body: LinkLoginIn,
+                      ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    """Backward-compat / recovery: attach a login to an EXISTING doctor profile so that login
+    becomes the doctor's self-service account (preserving the profile's existing slots/bookings).
+    If a user with the given email/username already exists it's reused (and given a doctor role for
+    this clinic); otherwise a new login is created with a temp password. Admins only."""
+    tenant_id = ctx["tenant"]["id"]
+    email = ((body.email or "").strip().lower()) or None
+    username = ((body.username or "").strip().lower()) or None
+    if not email and not username:
+        raise AppError("identifier_required", "Provide an email or username to link.", status=422)
+    with system_session() as db:
+        doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.tenant_id == tenant_id,
+                                         Doctor.deleted_at.is_(None)).first()
+        if doctor is None:
+            raise AppError("doctor_not_found", "Unknown doctor.", status=404)
+        user = None
+        if email:
+            user = db.query(User).filter(User.email == email).first()
+        if user is None and username:
+            user = db.query(User).filter(User.username == username).first()
+        login = None
+        if user is None:
+            temp = generate_temp_password()
+            user = User(email=email, username=username, password_hash=hash_password(temp),
+                        must_reset_password=True, status="active")
+            db.add(user); db.flush()
+            login = {"login": email or username, "temp_password": temp}
+        # ensure this user holds a doctor role for this clinic
+        has_role = db.query(UserRole).filter(UserRole.user_id == user.id,
+                                             UserRole.tenant_id == tenant_id,
+                                             UserRole.role == "doctor").first()
+        if has_role is None:
+            db.add(UserRole(user_id=user.id, tenant_id=tenant_id, role="doctor"))
+        doctor.user_id = user.id
+        return {"id": doctor.id, "name": doctor.name, "has_login": True,
+                "linked": (user.email or user.username), "new_login": login}
+
+
 @router.get("")
 def list_slots(doctor: str, date: str, ctx: dict = Depends(require_clinic_staff(*STAFF))):
     tenant_id = ctx["tenant"]["id"]

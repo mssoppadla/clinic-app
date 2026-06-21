@@ -197,6 +197,35 @@ def test_dev_otp_code_used_only_in_stub(client, canary, monkeypatch):
     assert ok.status_code == 200 and ok.json()["scope"] == "patient.self"
 
 
+def _reset_login(client, ident, temp, new_pw):
+    first = client.post("/auth/login", json={"identifier": ident, "password": temp}).json()
+    client.post("/auth/change-password", headers={"Authorization": f"Bearer {first['access_token']}"},
+                json={"current_password": temp, "new_password": new_pw})
+    return client.post("/auth/login", json={"identifier": ident, "password": new_pw}).json()["access_token"]
+
+
+def test_link_login_to_existing_doctor_preserves_profile(client, canary):
+    """Backward-compat: a doctor login created the OLD way (no linked profile) can be attached to
+    an existing Doctor profile, so that login self-services that profile (and its slots/bookings)."""
+    admin = {"Authorization": f"Bearer {_staff_token(client, canary['tenant_id'])}",
+             "X-Clinic-Slug": canary["slug"]}
+    # an existing doctor profile with slots, and a separately-created doctor login (unlinked)
+    doc_id = client.post("/slots/doctors", headers=admin, json={"name": "Legacy Doc"}).json()["id"]
+    cu = client.post("/users", headers=admin,
+                     json={"email": "legacy@doc.test", "role": "doctor", "tenant_id": canary["tenant_id"]}).json()
+    dtok = _reset_login(client, "legacy@doc.test", cu["temp_password"], "legacypw123")
+    dh = {"Authorization": f"Bearer {dtok}", "X-Clinic-Slug": canary["slug"]}
+    # before linking: the login has no profile -> queue is refused (the bug we guard against)
+    assert client.get("/slots/doctors", headers=dh).json()["me"]["doctor_id"] is None
+    assert client.get("/queue", headers=dh).status_code == 403
+    # admin links the existing login to the existing profile (reuses the account, no new password)
+    r = client.post(f"/slots/doctors/{doc_id}/link-login", headers=admin, json={"email": "legacy@doc.test"})
+    assert r.status_code == 200 and r.json()["has_login"] is True and r.json()["new_login"] is None
+    # now that login self-services that very profile, and the queue loads
+    assert client.get("/slots/doctors", headers=dh).json()["me"]["doctor_id"] == doc_id
+    assert client.get("/queue", headers=dh).status_code == 200
+
+
 def test_join_queue_still_works(client, canary):
     r = client.post("/bookings", headers={"X-Clinic-Slug": canary["slug"]}, json={
         "doctor_id": canary["doctor_id"], "mode": "join_queue",
