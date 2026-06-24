@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.engine import make_url
 
 # Tables that carry tenant_id and must be RLS-isolated (mirrors 0001 baseline TENANT_TABLES).
@@ -34,11 +34,20 @@ _PREDICATE = ("tenant_id = current_setting('app.tenant_id', true) "
               "OR current_setting('app.rls_bypass', true) = 'on'")
 
 
+def _existing_tenant_tables(connection) -> list[str]:
+    """Only the tenant tables that exist right now. apply_rls is called from several migrations;
+    each must skip tables a LATER migration will add (e.g. 0011 runs before 0012 creates
+    whatsapp_binding) — otherwise ALTER TABLE on a not-yet-created table aborts the upgrade."""
+    present = set(inspect(connection).get_table_names())
+    return [t for t in TENANT_TABLES if t in present]
+
+
 def apply_rls(connection) -> None:
-    """Enable + force RLS and (idempotently) create the tenant_isolation policy. Postgres only."""
+    """Enable + force RLS and (idempotently) create the tenant_isolation policy. Postgres only.
+    Operates only on tables that already exist, so it's safe at any migration point."""
     if connection.dialect.name != "postgresql":
         return
-    for t in TENANT_TABLES:
+    for t in _existing_tenant_tables(connection):
         connection.execute(text(f"ALTER TABLE {t} ENABLE ROW LEVEL SECURITY"))
         connection.execute(text(f"ALTER TABLE {t} FORCE ROW LEVEL SECURITY"))
         connection.execute(text(
@@ -96,7 +105,7 @@ def grant_app_privileges(admin_conn, role: str) -> None:
 def drop_rls(connection) -> None:
     if connection.dialect.name != "postgresql":
         return
-    for t in TENANT_TABLES:
+    for t in _existing_tenant_tables(connection):
         connection.execute(text(f"DROP POLICY IF EXISTS {_POLICY} ON {t}"))
         connection.execute(text(f"ALTER TABLE {t} NO FORCE ROW LEVEL SECURITY"))
         connection.execute(text(f"ALTER TABLE {t} DISABLE ROW LEVEL SECURITY"))
