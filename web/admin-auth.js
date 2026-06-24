@@ -102,7 +102,18 @@
     };
   }
 
-  window.requireLogin = function () { if (!token()) loginView(); };
+  function mountLogout() {
+    if (!token() || document.getElementById("logoutBtn")) return;
+    var b = document.createElement("button");
+    b.id = "logoutBtn"; b.type = "button"; b.textContent = "Log out";
+    b.style.cssText = "position:fixed;top:10px;right:12px;z-index:50;padding:6px 12px;border-radius:8px;" +
+      "border:1px solid var(--line,#d9e2dc);background:var(--surface,#fff);color:var(--ink,#163a30);" +
+      "font-size:.8rem;cursor:pointer";
+    b.onclick = window.logout;
+    document.body.appendChild(b);
+  }
+  window.logout = function () { sessionStorage.removeItem(KEY); location.reload(); };
+  window.requireLogin = function () { if (!token()) { loginView(); } else { mountLogout(); } };
   window.authFetch = async function (url, opts) {
     opts = opts || {};
     var extra = token() ? { Authorization: "Bearer " + token() } : {};

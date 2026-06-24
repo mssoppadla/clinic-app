@@ -37,6 +37,7 @@
     <div class="field"><label>WhatsApp phone <span class="muted">(for OTP reset)</span></label><input class="input" id="newDocPhone" inputmode="tel" placeholder="+91 ..."/></div>
     <button class="btn" id="addDocBtn" type="button">Add doctor</button>
     <div id="addDocResult"></div>
+    <div id="docList" style="margin-top:14px"></div>
   </section>
 
   <section class="card">
@@ -97,9 +98,47 @@ async function loadDoctors(selectId){
         ? docs.map(d=>`<option value="${d.id}">${d.name}${d.has_login?'':' · (no login)'}${d.specialty?' · '+d.specialty:''}</option>`).join('')
         : '<option value="">No doctors yet — add one above</option>';
       if(selectId) $('#doctor').value = selectId;
+      renderDocList(docs);
     }
     loadSlots();
   }catch(e){}
+}
+
+function renderDocList(docs){
+  const box = $('#docList'); if(!box) return;
+  if(!docs.length){ box.innerHTML=''; return; }
+  box.innerHTML = '<div class="muted" style="margin-bottom:6px">Doctors in this clinic</div>' + docs.map(d=>`
+    <div class="kv">
+      <span><b>${d.name}</b> <span class="muted">${d.specialty||''}</span>
+        ${d.has_login ? `<span class="pill g" style="margin-left:6px">login: ${d.login||'✓'}</span>`
+                      : '<span class="pill a" style="margin-left:6px">no login</span>'}</span>
+      ${d.has_login ? '' : `<button class="btn ghost sm" data-link="${d.id}" data-name="${d.name}">Link login</button>`}
+    </div>`).join('');
+  box.querySelectorAll('[data-link]').forEach(b=>{
+    b.onclick = ()=>{
+      const id=b.getAttribute('data-link'), name=b.getAttribute('data-name');
+      const email = prompt(`Link a login to "${name}".\nEnter the doctor's email (or leave blank to use a username):`, '');
+      if(email===null) return;
+      let username = '';
+      if(!email.trim()){ username = prompt('Enter a username for this doctor:', '')||''; if(!username.trim()) return; }
+      linkLogin(id, email.trim()||null, username.trim()||null);
+    };
+  });
+}
+
+async function linkLogin(doctorId, email, username){
+  clearError();
+  try{
+    const r = await authFetch(`${API}/slots/doctors/${doctorId}/link-login`, {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, username})});
+    const d = await r.json();
+    if(!r.ok){ showError((d.error&&d.error.message)||'Could not link login'); return; }
+    const note = d.new_login
+      ? ` New login created — temp password: <span class="snippet">${d.new_login.temp_password}</span>`
+      : ' Linked to the existing account.';
+    $('#addDocResult').innerHTML = `<div class="result ok" style="margin-top:10px">Linked <b>${d.linked}</b> to <b>${d.name}</b>.${note}</div>`;
+    loadDoctors();
+  }catch(e){ showError('Network error.'); }
 }
 
 $('#addDocBtn').onclick = async ()=>{

@@ -234,11 +234,16 @@ async function loadDaySlots(date){
   const wrap = $('#slotGroups'); wrap.innerHTML='';
   let any=false;
   Object.entries(groups).forEach(([period, list])=>{
-    if(!list.length) return; any=true;
-    const h=document.createElement('h4'); h.className='muted'; h.style.margin='12px 0 4px'; h.textContent=period; wrap.appendChild(h);
     const row=document.createElement('div'); row.className='chips';
-    list.forEach(s=>{ const c=document.createElement('span'); c.className='chip on'; c.textContent=s.label;
-      c.onclick=()=>{ SLOT={id:s.id, label:s.label, date}; gotoDetails(); }; row.appendChild(c); });
+    list.forEach(s=>{
+      const left = (typeof s.available === 'number') ? s.available : 1;
+      if(left <= 0) return;                       // never show a full slot as bookable
+      const c=document.createElement('span'); c.className='chip on';
+      c.innerHTML = `${s.label}<br><span style="font-size:.7em">${left} ${left===1?'spot':'spots'} left</span>`;
+      c.onclick=()=>{ SLOT={id:s.id, label:s.label, date}; gotoDetails(); }; row.appendChild(c);
+    });
+    if(!row.children.length) return; any=true;
+    const h=document.createElement('h4'); h.className='muted'; h.style.margin='12px 0 4px'; h.textContent=period; wrap.appendChild(h);
     wrap.appendChild(row);
   });
   if(!any) wrap.innerHTML='<p class="note">No slots for this day.</p>';
