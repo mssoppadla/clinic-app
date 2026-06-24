@@ -10,8 +10,19 @@
 #   /appointments/<clinic-slug> -> patient booking app (index.html; slug read from the path)
 #   (/admin is intentionally NOT handled here — reserved for the company site's future admin)
 #   /api/*                    -> FastAPI (unstripped; app serves routes under /api/v1 via root_path)
+#   /appointments/v1/*        -> SAME FastAPI, public clinic base (rewritten to /api/v1/*). This is
+#                                the canonical clinic API base: tovaitech.in/appointments/v1/...
+#                                (e.g. the WhatsApp webhook). /api/v1 stays working for back-compat.
 :80 {
 	handle /api/* {
+		reverse_proxy api:8000
+	}
+	# Clinic API under the /appointments base: /appointments/v1/x -> /api/v1/x on the same app.
+	# Must precede the static /appointments/* handlers below.
+	@clinicapi path /appointments/v1/*
+	handle @clinicapi {
+		uri strip_prefix /appointments
+		rewrite * /api{uri}
 		reverse_proxy api:8000
 	}
 	# Clinic-app's own static assets. MUST sit under /appointments/* because the front
@@ -48,6 +59,13 @@
 	handle @approvals {
 		root * /srv/web
 		rewrite * /onboard-admin.html
+		file_server
+	}
+	# Tovaitech platform admin — own WhatsApp test/live accounts (superadmin).
+	@platformpage path /appointments/platform /appointments/platform/
+	handle @platformpage {
+		root * /srv/web
+		rewrite * /platform-admin.html
 		file_server
 	}
 	# Clinic integrations admin — under /appointments/* like the other admin pages.

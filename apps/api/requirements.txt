@@ -8,4 +8,5 @@ alembic>=1.13
 psycopg[binary]>=3.1   # Postgres driver for real/local-docker; SQLite needs no driver
 pyjwt>=2.8             # staff/patient session tokens (HS256)
 bcrypt>=4.1            # password hashing
+anthropic>=0.69        # Claude API — WhatsApp AI agent (intent inference); live path only
 pytest>=8.0

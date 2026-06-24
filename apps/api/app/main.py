@@ -6,7 +6,8 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import admin, auth, bookings, clinics, health, onboarding, queue, slots, users
+from .api import (admin, auth, bookings, clinics, health, onboarding, platform_admin, queue,
+                  slots, users, whatsapp_webhook)
 from .core.config import get_settings
 from .core.errors import AppError, app_error_handler
 from .core.logging import configure_logging
@@ -45,6 +46,8 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(slots.router)
 app.include_router(queue.router)
+app.include_router(whatsapp_webhook.router)
+app.include_router(platform_admin.router)
 
 
 @app.get("/")

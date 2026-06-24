@@ -129,6 +129,10 @@ jobs:
             printf 'APP_SUPERADMIN_EMAIL=%s\n'     "${{ secrets.APP_SUPERADMIN_EMAIL }}"
             printf 'APP_SUPERADMIN_PASSWORD=%s\n'  "${{ secrets.APP_SUPERADMIN_PASSWORD }}"
             printf 'APP_DB_APP_PASSWORD=%s\n'      "${{ secrets.APP_DB_APP_PASSWORD }}"
+            printf 'APP_WHATSAPP_VERIFY_TOKEN=%s\n' "${{ secrets.APP_WHATSAPP_VERIFY_TOKEN }}"
+            printf 'APP_WHATSAPP_APP_SECRET=%s\n'  "${{ secrets.APP_WHATSAPP_APP_SECRET }}"
+            printf 'APP_ANTHROPIC_API_KEY=%s\n'    "${{ secrets.APP_ANTHROPIC_API_KEY }}"
+            printf 'APP_AI_MODE=%s\n'              "${{ secrets.APP_AI_MODE }}"
           } | base64 -w0 | ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20 \
               "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
               'P=$(cat); P="$P" python3 /tmp/upsert_env.py /opt/clinic-app/.env; rm -f /tmp/upsert_env.py'

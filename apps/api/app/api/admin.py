@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..core import integration_config as cfg
+from ..core.config import get_settings
 from ..integrations import bhashini, whatsapp
 from .deps import require_clinic_staff
 
@@ -31,7 +32,42 @@ def status(ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
             eff.get(k) for k in (["token", "phone_number_id"] if p == "whatsapp" else ["api_key", "base_url"])
         )
         out[p] = {"mode": eff.get("mode", "stub"), "ready_for_live": ready, "config": pub}
+    # WhatsApp agent: AI on/off is set by the platform admin (read-only here); confirm-before-
+    # booking is the clinic's own toggle (configurable, not hardcoded).
+    from ..domain.whatsapp_routing import deep_link
+    shared = cfg.get_clinic_flag(tid, "wa_shared", False)
+    out["agent"] = {
+        "ai_enabled": cfg.get_clinic_flag(tid, "ai_enabled", False),
+        "confirm_before_booking": cfg.get_clinic_flag(
+            tid, "confirm", default=get_settings().ai_confirm_before_action),
+        "wa_shared": shared,
+        "whatsapp_deep_link": deep_link(ctx["tenant"]["slug"]) if shared else None,
+    }
     return out
+
+
+class WaSourceIn(BaseModel):
+    shared: bool
+
+
+@router.post("/whatsapp-source")
+def set_whatsapp_source(body: WaSourceIn, ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    """Choose this clinic's WhatsApp number source: its own number (False) or Tovaitech's shared
+    number (True). On shared, patients reach the clinic via its deep link (no own number needed)."""
+    cfg.set_clinic_flag(ctx["tenant"]["id"], "wa_shared", body.shared)
+    return {"wa_shared": body.shared}
+
+
+class ConfirmIn(BaseModel):
+    enabled: bool
+
+
+@router.post("/confirm")
+def set_confirm(body: ConfirmIn, ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
+    """Clinic toggle: confirm a WhatsApp booking/queue action with the patient before committing.
+    Off = act immediately (fewer messages). Applies to both the menu and AI flows."""
+    cfg.set_clinic_flag(ctx["tenant"]["id"], "confirm", body.enabled)
+    return {"confirm_before_booking": body.enabled}
 
 
 class WhatsAppCfg(BaseModel):

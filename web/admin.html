@@ -8,6 +8,7 @@
 <title>Integrations setup · admin</title>
 <link rel="stylesheet" href="/appointments/assets/styles/app.css?v=8"/>
 <script src="/appointments/assets/admin-auth.js"></script>
+<script src="/appointments/assets/nav-panel.js"></script>
 </head>
 <body>
 <div class="top">
@@ -59,6 +60,25 @@
       <div id="bh_result"></div>
     </section>
   </div>
+  <section class="card" style="margin-top:14px">
+    <div class="cardhead"><h3>WhatsApp agent</h3><span id="agentPill" class="pill n">…</span></div>
+    <p class="hint">When Tovaitech enables the <b>AI agent</b> for your clinic, patients chat
+      naturally; otherwise they get a simple numbered menu. Both can show slots, book, and join
+      the queue. (AI on/off is set by Tovaitech.)</p>
+    <div class="field"><label>WhatsApp number</label>
+      <label class="consent" style="margin:2px 0 0"><input type="radio" name="wa_src" value="own"/>
+        <span>Our own number (configured above)</span></label>
+      <label class="consent" style="margin:6px 0 0"><input type="radio" name="wa_src" value="shared"/>
+        <span>Tovaitech's shared number — patients reach us via our clinic link (no own number needed)</span></label>
+      <div id="waLinkBox" class="hidden" style="margin-top:6px"></div>
+      <button class="btn ghost sm" id="waSrcSave" type="button" style="margin-top:6px">Save number source</button>
+    </div>
+    <label class="consent"><input type="checkbox" id="confirmToggle"/>
+      <span>Confirm with the patient before booking / joining the queue (recommended). Turn off to
+        act immediately — fewer messages.</span></label>
+    <button class="btn" id="confirmSave" type="button">Save preference</button>
+    <div class="result hidden" id="agent_result" style="margin-top:8px"></div>
+  </section>
   <p class="foot">Secrets are write-only — saved values are never shown again, only “configured ✓”. In production these are backed by a secrets manager. Changes take effect immediately (no restart).</p>
 </div>
 
@@ -98,8 +118,37 @@ async function loadStatus(){
     $('#bh_tts_pipeline').value = bh.config.tts_pipeline || '';
     $('#bh_languages').value = bh.config.languages || '';
     $('#bh_key_state').textContent = bh.config.api_key.configured ? 'key configured ✓ (leave blank to keep)' : 'not set';
+    if(s.agent){
+      $('#confirmToggle').checked = !!s.agent.confirm_before_booking;
+      $('#agentPill').className = 'pill ' + (s.agent.ai_enabled ? 'g' : 'n');
+      $('#agentPill').textContent = s.agent.ai_enabled ? 'AI enabled' : 'menu mode';
+      const src = s.agent.wa_shared ? 'shared' : 'own';
+      const radio = document.querySelector(`input[name="wa_src"][value="${src}"]`);
+      if(radio) radio.checked = true;
+      const box = $('#waLinkBox');
+      if(s.agent.wa_shared && s.agent.whatsapp_deep_link){
+        box.classList.remove('hidden');
+        box.innerHTML = `Your shared-number link: <div class="snippet" style="margin-top:4px">${s.agent.whatsapp_deep_link}</div>`;
+      } else { box.classList.add('hidden'); box.innerHTML=''; }
+    }
   }catch(e){ showError('Could not load status — is the API running at '+API+'? ('+e.message+')'); }
 }
+
+$('#confirmSave').onclick = async ()=>{
+  const r = await authFetch(`${API}/admin/integrations/confirm`, {method:'POST',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled: $('#confirmToggle').checked})});
+  const e=$('#agent_result'); e.classList.remove('hidden');
+  if(r.ok){ e.className='result ok'; e.textContent='Saved.'; } else { e.className='result bad'; e.textContent='Save failed ('+r.status+')'; }
+};
+$('#waSrcSave').onclick = async ()=>{
+  const sel = document.querySelector('input[name="wa_src"]:checked');
+  const shared = sel && sel.value === 'shared';
+  const r = await authFetch(`${API}/admin/integrations/whatsapp-source`, {method:'POST',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({shared})});
+  const e=$('#agent_result'); e.classList.remove('hidden');
+  if(r.ok){ e.className='result ok'; e.textContent='Saved.'; await loadStatus(); }
+  else { e.className='result bad'; e.textContent='Save failed ('+r.status+')'; }
+};
 
 function val(id){ const v=$(id).value.trim(); return v===''? undefined : v; }
 
