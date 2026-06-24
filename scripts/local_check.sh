@@ -27,9 +27,42 @@ if command -v docker >/dev/null 2>&1; then
   for _ in $(seq 1 30); do docker exec "$PGC" pg_isready -U clinic >/dev/null 2>&1 && break; sleep 1; done
   ( cd apps/api && APP_DATABASE_URL="$PGURL" APP_ENV=ci PYTHONPATH=. "$PY" scripts/bootstrap_db.py )
   ( cd apps/api && APP_DATABASE_URL="$PGURL" APP_ENV=ci PYTHONPATH=. "$PY" -m alembic check || true )
-  ( cd apps/api && APP_DATABASE_URL="$PGURL" APP_ENV=ci PYTHONPATH=. "$PY" -m alembic upgrade head )
+  # bootstrap above creates the FULL current schema (create_all) + stamps head, so a plain
+  # `alembic upgrade head` is a no-op and NEVER runs the new migrations' upgrade() bodies. That
+  # blind spot let a migration that ALTERs a not-yet-created table pass preflight and only fail
+  # in prod (the real deploy runs `alembic upgrade` on an EXISTING older DB). To mirror prod:
+  # find the migrations this branch ADDS vs origin/main, downgrade to the revision just before
+  # them, then upgrade head — exercising exactly the upgrade() bodies prod will run. This is a
+  # throwaway container; prod NEVER downgrades.
+  git fetch origin main --quiet 2>/dev/null || true
+  # NB: feed the file list via an env var, NOT a pipe — `python - <<EOF` reads its program from
+  # the heredoc, which would clobber piped stdin and silently yield an empty list.
+  NEW_MIGRATIONS="$(git diff --name-only --diff-filter=A origin/main...HEAD -- apps/api/migrations/versions/ 2>/dev/null)"
+  PRIOR_HEAD="$(NEW_MIGRATIONS="$NEW_MIGRATIONS" "$PY" - <<'PYEOF'
+import re, os, pathlib
+files = [l.strip() for l in os.environ.get("NEW_MIGRATIONS", "").splitlines() if l.strip().endswith(".py")]
+new_revs, downs = set(), {}
+for f in files:
+    txt = pathlib.Path(f).read_text(encoding="utf-8")
+    rev = re.search(r'^revision\s*=\s*["\']([^"\']+)', txt, re.M)
+    dr  = re.search(r'^down_revision\s*=\s*["\']([^"\']+)', txt, re.M)
+    if rev:
+        new_revs.add(rev.group(1)); downs[rev.group(1)] = dr.group(1) if dr else None
+# prior head = the down_revision pointed at by a new migration but not itself new
+priors = [d for d in downs.values() if d and d not in new_revs]
+print(priors[0] if priors else "")
+PYEOF
+)"
+  if [ -n "$PRIOR_HEAD" ]; then
+    echo "   simulating prod upgrade: downgrade -> $PRIOR_HEAD, then upgrade head"
+    ( cd apps/api && APP_DATABASE_URL="$PGURL" APP_ENV=ci PYTHONPATH=. "$PY" -m alembic downgrade "$PRIOR_HEAD" )
+    ( cd apps/api && APP_DATABASE_URL="$PGURL" APP_ENV=ci PYTHONPATH=. "$PY" -m alembic upgrade head )
+  else
+    echo "   (no new migrations vs origin/main — running plain upgrade head)"
+    ( cd apps/api && APP_DATABASE_URL="$PGURL" APP_ENV=ci PYTHONPATH=. "$PY" -m alembic upgrade head )
+  fi
   docker rm -f "$PGC" >/dev/null 2>&1 || true; trap - EXIT
-  echo "   Postgres bootstrap + alembic check + upgrade: OK"
+  echo "   Postgres bootstrap + alembic check + incremental upgrade: OK"
 else
   echo "   (docker not found — CI will run the Postgres migration-drift; install docker to catch it locally)"
 fi
