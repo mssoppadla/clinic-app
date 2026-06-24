@@ -36,3 +36,22 @@ class WhatsAppClient:
         except Exception as exc:
             log.warning("whatsapp live send failed", extra={"event": "wa.fail", "tenant_id": tenant_id})
             return {"ok": False, "mode": "live", "error": str(exc)}
+
+    def send_text(self, *, tenant_id: str, to_phone: str, text: str) -> dict:
+        """Free-form session reply (valid within 24h of the patient's last message). Used by the
+        WhatsApp agent (menu + AI flows). Stub records the text for tests."""
+        cfg = get_effective("whatsapp", tenant_id=tenant_id)
+        if cfg.get("mode") != "live" or not cfg.get("token"):
+            SENT_STUB.append({"tenant_id": tenant_id, "to": to_phone, "type": "text", "text": text})
+            log.info("whatsapp stub text to=%s", to_phone, extra={"event": "wa.stub", "tenant_id": tenant_id})
+            return {"ok": True, "mode": "stub"}
+        try:
+            url = f"{cfg['base_url']}/{cfg['phone_number_id']}/messages"
+            body = {"messaging_product": "whatsapp", "to": to_phone, "type": "text",
+                    "text": {"body": text}}
+            resp = httpx.post(url, json=body, headers={"Authorization": f"Bearer {cfg['token']}"}, timeout=10.0)
+            resp.raise_for_status()
+            return {"ok": True, "mode": "live", "id": resp.json().get("messages", [{}])[0].get("id")}
+        except Exception as exc:
+            log.warning("whatsapp live text failed", extra={"event": "wa.fail", "tenant_id": tenant_id})
+            return {"ok": False, "mode": "live", "error": str(exc)}

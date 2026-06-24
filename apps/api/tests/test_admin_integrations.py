@@ -61,3 +61,12 @@ def test_whatsapp_test_endpoint_stub(client, admin):
 def test_status_requires_clinic_staff(client, canary):
     # no auth at all -> 401
     assert client.get("/admin/integrations/status", headers={"X-Clinic-Slug": canary["slug"]}).status_code == 401
+
+
+def test_confirm_toggle_is_clinic_configurable(client, admin):
+    """The confirm-before-booking preference is a clinic toggle (not hardcoded), reflected in status."""
+    assert client.get("/admin/integrations/status", headers=admin).json()["agent"]["confirm_before_booking"] is True
+    assert client.post("/admin/integrations/confirm", headers=admin, json={"enabled": False}).status_code == 200
+    st = client.get("/admin/integrations/status", headers=admin).json()
+    assert st["agent"]["confirm_before_booking"] is False
+    assert "ai_enabled" in st["agent"]   # AI on/off (set by platform) surfaced read-only

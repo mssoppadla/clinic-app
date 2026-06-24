@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e7c66"/>
+<meta http-equiv="Cache-Control" content="no-store"/>
+<title>Tovaitech WhatsApp · platform admin</title>
+<link rel="stylesheet" href="/appointments/assets/styles/app.css?v=8"/>
+<script src="/appointments/assets/admin-auth.js"></script>
+<script src="/appointments/assets/nav-panel.js"></script>
+</head>
+<body>
+<div class="top">
+  <div class="brandlogo">T</div>
+  <div><h1>Tovaitech WhatsApp</h1><p>Platform admin · test &amp; live sending accounts</p></div>
+</div>
+
+<div class="adminwrap">
+  <div id="error" class="err hidden"></div>
+  <p class="hint">These are <b>Tovaitech's own</b> WhatsApp Cloud API accounts (one Meta app, many
+    clinics). The <b>active</b> account is the platform default every clinic falls back to until it
+    sets its own number. Per-clinic numbers are configured on each clinic's own admin page.</p>
+  <p class="hint">Active account: <b id="activeTag">…</b></p>
+
+  <div class="grid2" id="envCards"></div>
+
+  <section class="card" id="aiCard" style="margin-top:14px">
+    <div class="cardhead"><h3>AI agent (Claude)</h3><span id="aiPill" class="pill n">…</span></div>
+    <p class="hint">The LLM that powers clinics who opted into the AI WhatsApp agent. Stored here
+      (config-driven, hot-reload) — not in code. Clinics still need AI switched on individually
+      (Clinics &amp; approvals → AI agent toggle); clinics without it use the menu flow.</p>
+    <div class="field"><label>Mode</label>
+      <select class="select" id="ai_mode"><option value="stub">Stub (no LLM calls)</option><option value="live">Live</option></select></div>
+    <div class="field"><label>Model</label><input class="input" id="ai_model" placeholder="claude-opus-4-8"/></div>
+    <div class="field"><label>Anthropic API key <span class="muted">(write-only)</span></label><input class="input" id="ai_key" type="password" placeholder="sk-ant-..."/><p class="hint" id="ai_key_state"></p></div>
+    <button class="btn" id="ai_save" type="button">Save AI config</button>
+    <div class="result hidden" id="ai_result" style="margin-top:8px"></div>
+  </section>
+</div>
+
+<template id="envTpl">
+  <section class="card">
+    <div class="cardhead"><h3 class="envTitle"></h3><span class="pill n envPill">…</span></div>
+    <div class="field"><label>Mode</label>
+      <select class="select f_mode"><option value="stub">Stub (no external calls)</option><option value="live">Live</option></select></div>
+    <div class="field"><label>Phone number ID</label><input class="input f_phone_number_id" placeholder="e.g. 1242752045578853"/></div>
+    <div class="field"><label>Access token <span class="muted">(write-only)</span></label><input class="input f_token" type="password" placeholder="paste token"/><p class="hint f_token_state"></p></div>
+    <div class="field"><label>WhatsApp Business Account ID</label><input class="input f_business_account_id" placeholder="e.g. 1732099944482965"/></div>
+    <div class="field"><label>Display number</label><input class="input f_display_number" placeholder="+1 555 ..."/></div>
+    <div class="field"><label>Graph base URL</label><input class="input f_base_url" placeholder="https://graph.facebook.com/v21.0"/></div>
+    <button class="btn btnSave" type="button">Save account</button>
+    <button class="btn ghost btnActivate" type="button">Make active</button>
+    <div class="kv" style="margin-top:12px"><span>Send a test message (uses the active account)</span></div>
+    <div class="field"><input class="input f_test_phone" inputmode="tel" placeholder="+91 test number"/></div>
+    <button class="btn ghost btnTest" type="button">Send test</button>
+    <div class="result envResult hidden" style="margin-top:8px"></div>
+  </section>
+</template>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const API = (Q.get('api') || window.API_BASE || (location.port==='8080' ? 'http://localhost:8077' : '/api/v1')).replace(/\/$/,'');
+const $ = s => document.querySelector(s);
+const showError = m => { const e=$('#error'); e.textContent=m; e.classList.remove('hidden'); window.scrollTo(0,0); };
+const clearError = () => $('#error').classList.add('hidden');
+
+function fillEnv(card, env, data){
+  const wa = data[env]; const active = data.active_env === env;
+  card.querySelector('.envTitle').textContent = env==='test' ? 'Test account' : 'Live account';
+  const pill = card.querySelector('.envPill');
+  pill.className = 'pill ' + (active ? 'g' : 'n'); pill.textContent = active ? 'active' : 'inactive';
+  card.querySelector('.f_mode').value = wa.mode || 'stub';
+  card.querySelector('.f_phone_number_id').value = wa.phone_number_id || '';
+  card.querySelector('.f_business_account_id').value = wa.business_account_id || '';
+  card.querySelector('.f_display_number').value = wa.display_number || '';
+  card.querySelector('.f_base_url').value = wa.base_url || '';
+  card.querySelector('.f_token_state').textContent = (wa.token && wa.token.configured) ? 'token configured ✓ (leave blank to keep)' : 'not set';
+}
+
+function val(card, cls){ const v = card.querySelector(cls).value.trim(); return v===''? undefined : v; }
+function result(card, ok, msg){ const e=card.querySelector('.envResult'); e.className='result '+(ok?'ok':'bad'); e.textContent=msg; e.classList.remove('hidden'); }
+
+async function load(){
+  clearError();
+  const r = await authFetch(`${API}/admin/platform/whatsapp`);
+  if(!r.ok){ if(r.status!==401) showError('Could not load platform config ('+r.status+').'); return; }
+  const data = await r.json();
+  $('#activeTag').textContent = data.active_env==='live' ? 'Live' : 'Test';
+  const wrap = $('#envCards'); wrap.innerHTML='';
+  ['test','live'].forEach(env=>{
+    const card = document.getElementById('envTpl').content.firstElementChild.cloneNode(true);
+    fillEnv(card, env, data);
+    card.querySelector('.btnSave').onclick = ()=>save(env, card);
+    card.querySelector('.btnActivate').onclick = ()=>activate(env, card);
+    card.querySelector('.btnTest').onclick = ()=>sendTest(env, card);
+    wrap.appendChild(card);
+  });
+}
+
+async function save(env, card){
+  clearError();
+  const body = { mode:card.querySelector('.f_mode').value, base_url:val(card,'.f_base_url'),
+    token:val(card,'.f_token'), phone_number_id:val(card,'.f_phone_number_id'),
+    business_account_id:val(card,'.f_business_account_id'), display_number:val(card,'.f_display_number') };
+  const r = await authFetch(`${API}/admin/platform/whatsapp/${env}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.ok){ result(card, true, 'Saved.'); load(); } else result(card, false, 'Save failed ('+r.status+')');
+}
+
+async function activate(env, card){
+  clearError();
+  const r = await authFetch(`${API}/admin/platform/whatsapp/activate`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({environment:env})});
+  if(r.ok){ result(card, true, env+' is now the active account.'); load(); } else result(card, false, 'Activate failed ('+r.status+')');
+}
+
+async function sendTest(env, card){
+  const to = val(card,'.f_test_phone'); if(!to){ result(card, false, 'Enter a test number'); return; }
+  const r = await authFetch(`${API}/admin/platform/whatsapp/test`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_phone:to})});
+  const d = await r.json();
+  result(card, d.sent && d.sent.ok, d.sent ? ('mode='+d.sent.mode+(d.sent.ok?' · sent ✓':' · failed')) : 'error');
+}
+
+async function loadAi(){
+  const r = await authFetch(`${API}/admin/platform/ai`);
+  if(!r.ok) return;
+  const c = await r.json();
+  $('#ai_mode').value = c.mode || 'stub';
+  $('#ai_model').value = c.model || '';
+  $('#ai_key_state').textContent = (c.api_key && c.api_key.configured) ? 'key configured ✓ (leave blank to keep)' : 'not set';
+  const live = c.mode === 'live' && c.api_key && c.api_key.configured;
+  $('#aiPill').className = 'pill ' + (live ? 'g' : 'n');
+  $('#aiPill').textContent = live ? 'live · ready' : (c.mode === 'live' ? 'live · key missing' : 'stub');
+}
+$('#ai_save').onclick = async ()=>{
+  const body = { mode:$('#ai_mode').value, model:$('#ai_model').value.trim()||undefined, api_key:$('#ai_key').value.trim()||undefined };
+  const r = await authFetch(`${API}/admin/platform/ai`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const e = $('#ai_result'); e.classList.remove('hidden');
+  if(r.ok){ $('#ai_key').value=''; e.className='result ok'; e.textContent='Saved.'; loadAi(); }
+  else { e.className='result bad'; e.textContent='Save failed ('+r.status+')'; }
+};
+
+requireLogin();
+load();
+loadAi();
+</script>
+</body>
+</html>

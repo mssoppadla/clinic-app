@@ -26,6 +26,7 @@ from sqlalchemy.engine import make_url
 TENANT_TABLES = [
     "doctors", "sessions", "slots", "patients", "consents", "booking_events", "bookings",
     "booking_patients", "tokens", "queue_entries", "idempotency_keys", "usage_events",
+    "whatsapp_messages", "whatsapp_pending", "whatsapp_binding",
 ]
 
 _POLICY = "tenant_isolation"

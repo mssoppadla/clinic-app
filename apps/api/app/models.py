@@ -252,3 +252,41 @@ class IntegrationConfig(Base):
     value: Mapped[str] = mapped_column(Text, default="")
     is_secret: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class WhatsAppMessage(Base):
+    """Inbound/outbound WhatsApp messages for a clinic — dedupe (wa_message_id is unique) and
+    conversation history for the AI agent. tenant_id resolved from the inbound phone_number_id."""
+    __tablename__ = "whatsapp_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    wa_message_id: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True)
+    direction: Mapped[str] = mapped_column(String(3))          # in | out
+    phone: Mapped[str] = mapped_column(String(40), index=True)  # the patient's WhatsApp number
+    text: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class WhatsAppPending(Base):
+    """A proposed action awaiting the patient's 'YES' (confirm-before-commit). One open row per
+    (tenant, phone); superseded when a new proposal is made or consumed on confirmation."""
+    __tablename__ = "whatsapp_pending"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    phone: Mapped[str] = mapped_column(String(40), index=True)
+    action: Mapped[dict] = mapped_column(JSON, default=dict)   # {tool, args} to execute on YES
+    summary: Mapped[str] = mapped_column(Text, default="")     # human text shown to the patient
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class WhatsAppBinding(Base):
+    """Routing for Tovaitech's SHARED WhatsApp number: which clinic a patient phone is currently
+    talking to. Set from a clinic deep link's first message ('...book at <slug>'); remembered so
+    follow-up messages ('yes', '2') route to the same clinic. One current binding per phone."""
+    __tablename__ = "whatsapp_binding"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    phone: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

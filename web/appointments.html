@@ -51,6 +51,14 @@
     </div>
 
     <div class="field">
+      <label>WhatsApp booking number</label>
+      <label class="consent" style="margin:2px 0 0"><input type="radio" name="wa_source" value="own" checked/>
+        <span>Use my clinic's own WhatsApp number <span class="muted">— you connect your Meta number</span></span></label>
+      <label class="consent" style="margin:6px 0 0"><input type="radio" name="wa_source" value="shared"/>
+        <span>Use Tovaitech's shared number <span class="muted">— no number of your own; patients reach you via your clinic link</span></span></label>
+    </div>
+
+    <div class="field">
       <label>Your name <span class="muted">(clinic admin)</span></label>
       <input class="input" id="contact_name" autocomplete="name" placeholder="Full name"/>
     </div>
@@ -85,6 +93,15 @@
       <div class="muted">Your tovaitech booking link</div>
       <div class="code" id="hostedLink">—</div>
       <button class="btn ghost sm" id="copyLink" type="button" style="margin-top:10px">Copy link</button>
+    </div>
+
+    <!-- WhatsApp: shared-number deep link -->
+    <div id="waSection" class="field hidden" style="margin-top:14px">
+      <label>Your WhatsApp booking link (Tovaitech shared number)</label>
+      <p class="hint">Share this link / print it as a QR. Patients who tap it reach <b>your</b> clinic
+        on our number — no WhatsApp number of your own needed.</p>
+      <textarea class="snippet" id="waLink" readonly rows="2"></textarea>
+      <button class="btn ghost sm" id="copyWaLink" type="button" style="margin-top:8px">Copy link</button>
     </div>
 
     <!-- embed option -->
@@ -144,6 +161,7 @@ function checkSlug(){
 }
 
 function hostingChoice(){ const r=document.querySelector('input[name="hosting"]:checked'); return r ? r.value : 'hosted'; }
+function waSourceChoice(){ const r=document.querySelector('input[name="wa_source"]:checked'); return r ? r.value : 'own'; }
 
 $('#registerBtn').onclick = async ()=>{
   clearError();
@@ -156,6 +174,7 @@ $('#registerBtn').onclick = async ()=>{
     contact_email: $('#contact_email').value.trim() || null,
     contact_phone: $('#contact_phone').value.trim() || null,
     languages, branding: { hosting: hostingChoice() },
+    use_shared_whatsapp: waSourceChoice() === 'shared',
   };
   $('#registerBtn').disabled = true;
   try{
@@ -163,7 +182,7 @@ $('#registerBtn').onclick = async ()=>{
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     const d = await r.json();
     if(!r.ok){ showError((d.error && d.error.message) || ('Could not register ('+r.status+')')); return; }
-    STATE = { slug:d.slug, name:d.name, hosting:(d.branding&&d.branding.hosting)||'hosted', readiness:d.readiness, go_live:d.go_live };
+    STATE = { slug:d.slug, name:d.name, hosting:(d.branding&&d.branding.hosting)||'hosted', readiness:d.readiness, go_live:d.go_live, whatsapp:d.whatsapp||null };
     // reflect the new state in the URL (refresh-safe; shareable)
     history.pushState({slug:d.slug}, '', `/appointments/onboard?slug=${encodeURIComponent(d.slug)}${apiSuffix}`);
     renderDone();
@@ -197,6 +216,15 @@ function renderDone(){
     $('#snippet').value = snippet;
     $('#copySnippet').onclick = ()=>{ navigator.clipboard && navigator.clipboard.writeText(snippet); $('#copySnippet').textContent='Copied'; };
     $('#customizeLink').href = `/appointments/onboard/customize?slug=${encodeURIComponent(STATE.slug)}${apiSuffix}`;
+  }
+  // WhatsApp shared-number deep link
+  const wa = STATE.whatsapp || {};
+  const shared = wa.mode === 'shared';
+  $('#waSection').classList.toggle('hidden', !shared);
+  if(shared){
+    const link = wa.deep_link || '(your Tovaitech WhatsApp link will appear once the shared number is configured)';
+    $('#waLink').value = link;
+    $('#copyWaLink').onclick = ()=>{ navigator.clipboard && navigator.clipboard.writeText(link); $('#copyWaLink').textContent='Copied'; };
   }
   renderChecklist();
   hide('#register'); show('#done');

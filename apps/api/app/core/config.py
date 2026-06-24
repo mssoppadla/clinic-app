@@ -67,6 +67,21 @@ class Settings(BaseSettings):
     bhashini_api_key: str = ""          # secret - from env only
     bhashini_user_id: str = ""
 
+    # --- WhatsApp inbound webhook (two-way) — PLATFORM-level (one Tovaitech Meta app) ---
+    # The webhook is ONE public URL (tovaitech.in/appointments/v1/webhooks/whatsapp); inbound
+    # messages are routed to the right clinic by metadata.phone_number_id. verify_token is the
+    # GET-handshake secret; app_secret verifies Meta's X-Hub-Signature-256 on POSTs.
+    whatsapp_verify_token: str = ""     # secret - you choose it; paste the same value in Meta
+    whatsapp_app_secret: str = ""       # secret - Meta App → Settings → Basic
+
+    # --- AI agent (Claude) that reads patient messages, infers intent, and replies ---
+    ai_mode: Literal["stub", "live"] = "stub"
+    ai_model: str = "claude-opus-4-8"
+    anthropic_api_key: str = ""         # secret - from env only
+    # Confirm a booking/cancel with the patient before committing. Per-clinic override lives in
+    # integration_config (provider "whatsapp", key "ai_confirm"); this is the platform default.
+    ai_confirm_before_action: bool = True
+
     # default UI languages; English ('en') is ALWAYS present (A15)
     default_languages: str = "en,ml"
 

@@ -127,6 +127,8 @@ class RegisterIn(BaseModel):
     slug: str | None = Field(default=None, max_length=80)
     languages: list[str] | None = None
     branding: dict | None = None
+    # WhatsApp number source: False/None = clinic's own number; True = Tovaitech's shared number.
+    use_shared_whatsapp: bool | None = None
 
 
 class OverrideIn(BaseModel):
@@ -185,17 +187,22 @@ def register_clinic(body: RegisterIn):
         )
         db.add(tenant)
         db.flush()
+        tid = tenant.id
         readiness = _readiness(db, tenant)
-        log.info("onboarding.register slug=%s name=%s", slug, body.name)
-        return {
-            "slug": slug,
-            "name": tenant.name,
-            "status": tenant.status,
-            "go_live": tenant.go_live,
-            "hosted_page": f"/appointments/{slug}",
-            "branding": tenant.branding or {},
-            "readiness": readiness,
-        }
+        log.info("onboarding.register slug=%s name=%s shared_wa=%s", slug, body.name,
+                 bool(body.use_shared_whatsapp))
+    from ..core import integration_config as _cfg
+    from ..domain.whatsapp_routing import deep_link as _deep_link
+    if body.use_shared_whatsapp:
+        _cfg.set_clinic_flag(tid, "wa_shared", True)
+    return {
+        "slug": slug, "name": body.name.strip(), "status": "trial", "go_live": False,
+        "hosted_page": f"/appointments/{slug}",
+        "branding": _clean_branding(body.branding),
+        "readiness": readiness,
+        "whatsapp": {"mode": "shared" if body.use_shared_whatsapp else "own",
+                     "deep_link": _deep_link(slug) if body.use_shared_whatsapp else None},
+    }
 
 
 @router.get("/status")
@@ -217,8 +224,11 @@ def list_clinics(_: dict = Depends(require_role("superadmin")), live: bool = Tru
         if live:
             q = q.filter(Tenant.go_live.is_(True))
         rows = q.order_by(Tenant.name).all()
+        from ..core import integration_config as _cfg
         return {"clinics": [{"tenant_id": t.id, "slug": t.slug, "name": t.name,
-                             "status": t.status, "go_live": t.go_live} for t in rows]}
+                             "status": t.status, "go_live": t.go_live,
+                             "ai_enabled": _cfg.get_clinic_flag(t.id, "ai_enabled", False)}
+                            for t in rows]}
 
 
 @router.get("/pending")

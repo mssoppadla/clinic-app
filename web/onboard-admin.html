@@ -8,6 +8,7 @@
 <title>Clinic approvals · provider</title>
 <link rel="stylesheet" href="/appointments/assets/styles/app.css?v=8"/>
 <script src="/appointments/assets/admin-auth.js"></script>
+<script src="/appointments/assets/nav-panel.js"></script>
 </head>
 <body>
 <div class="top">
@@ -121,12 +122,16 @@ async function loadActive(){
           <div class="cred" data-slug="${c.slug}" style="margin-top:6px"></div>
         </span>
         <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <button class="btn ghost sm" data-ai="${c.slug}" data-on="${c.ai_enabled?1:0}" type="button">AI agent: ${c.ai_enabled?'on':'off'}</button>
           <button class="btn ghost sm" data-reveal="${c.slug}" type="button">Reveal admin login</button>
           <a class="btn ghost sm" href="/appointments/${c.slug}" target="_blank" rel="noopener">View booking page</a>
         </span>
       </div>`).join('') : '<p class="muted" style="padding:8px 0">No active clinics yet.</p>';
     $('#activeList').querySelectorAll('[data-reveal]').forEach(b=>{
       b.onclick = ()=>revealAdmin(b.getAttribute('data-reveal'), b);
+    });
+    $('#activeList').querySelectorAll('[data-ai]').forEach(b=>{
+      b.onclick = ()=>toggleAi(b.getAttribute('data-ai'), b.getAttribute('data-on')==='1', b);
     });
   }catch(e){}
 }
@@ -143,6 +148,16 @@ async function revealAdmin(slug, btn){
       <span class="muted" style="font-size:.72rem">New temporary password — they’ll set their own on next login.</span></div>`;
     btn.disabled = false; btn.textContent = 'Reset again';
   }catch(e){ showError('Network error.'); btn.disabled=false; btn.textContent='Reveal admin login'; }
+}
+
+async function toggleAi(slug, on, btn){
+  clearError(); btn.disabled = true;
+  try{
+    const r = await authFetch(`${API}/admin/platform/clinics/${encodeURIComponent(slug)}/ai`,
+      {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled: !on})});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); showError((e.error&&e.error.message)||'Could not toggle AI'); btn.disabled=false; return; }
+    loadActive();   // re-render with the new state
+  }catch(e){ showError('Network error.'); btn.disabled=false; }
 }
 
 requireLogin();
