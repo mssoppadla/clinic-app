@@ -46,11 +46,14 @@ def _encode(claims: dict, ttl: timedelta) -> str:
     return jwt.encode(payload, s.jwt_secret, algorithm="HS256")
 
 
-def create_access_token(*, sub: str, roles: list[dict]) -> str:
-    """roles: [{'role': 'superadmin'|'clinic_admin'|..., 'tenant_id': str|None}, ...]"""
+def create_access_token(*, sub: str, roles: list[dict], name: str | None = None) -> str:
+    """roles: [{'role': 'superadmin'|'clinic_admin'|..., 'tenant_id': str|None}, ...]
+    name: optional human label (email/username) so the UI can show who is signed in."""
     s = get_settings()
-    return _encode({"sub": sub, "typ": "access", "roles": roles},
-                   timedelta(minutes=s.jwt_access_ttl_min))
+    claims = {"sub": sub, "typ": "access", "roles": roles}
+    if name:
+        claims["name"] = name
+    return _encode(claims, timedelta(minutes=s.jwt_access_ttl_min))
 
 
 def create_refresh_token(*, sub: str) -> str:
