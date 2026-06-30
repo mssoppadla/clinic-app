@@ -49,16 +49,55 @@ def test_invalid_env_rejected(client, superadmin_headers):
                       json={"mode": "stub"}).status_code == 422
 
 
+def test_webhook_config_gated_and_masks_app_secret(client, superadmin_headers):
+    assert client.get("/admin/platform/webhook").status_code == 401          # gated
+    r = client.get("/admin/platform/webhook", headers=superadmin_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["callback_path"].endswith("/webhooks/whatsapp")              # env-aware path
+    assert body["app_secret"] == {"secret": True, "configured": False}       # masked, not set
+
+
+def test_webhook_config_is_used_by_the_webhook(client, superadmin_headers):
+    """Verify token + app secret set in the UI are what the public webhook validates against
+    (config-driven, hot-reload) — no env/redeploy needed."""
+    import hashlib, hmac, json
+    r = client.put("/admin/platform/webhook", headers=superadmin_headers,
+                   json={"verify_token": "VT-from-ui", "app_secret": "AS-from-ui"})
+    assert r.status_code == 200
+    assert r.json()["verify_token"] == "VT-from-ui"
+    assert r.json()["app_secret"] == {"secret": True, "configured": True}     # never echoed
+
+    # GET handshake now accepts the UI token
+    ok = client.get("/webhooks/whatsapp", params={
+        "hub.mode": "subscribe", "hub.verify_token": "VT-from-ui", "hub.challenge": "99"})
+    assert ok.status_code == 200 and ok.text == "99"
+    bad = client.get("/webhooks/whatsapp", params={
+        "hub.mode": "subscribe", "hub.verify_token": "wrong", "hub.challenge": "99"})
+    assert bad.status_code == 403
+
+    # POST signature is verified with the UI app secret
+    raw = json.dumps({"object": "whatsapp_business_account", "entry": []}).encode()
+    sig = "sha256=" + hmac.new(b"AS-from-ui", raw, hashlib.sha256).hexdigest()
+    good = client.post("/webhooks/whatsapp", content=raw,
+                       headers={"X-Hub-Signature-256": sig, "Content-Type": "application/json"})
+    assert good.status_code == 200
+    bad_sig = client.post("/webhooks/whatsapp", content=raw,
+                          headers={"X-Hub-Signature-256": "sha256=deadbeef", "Content-Type": "application/json"})
+    assert bad_sig.status_code == 403
+
+
 def test_ai_llm_config_is_admin_driven_not_hardcoded(client, superadmin_headers):
     """The AI key/model/mode live in runtime config (set in the UI), masked, superadmin-only."""
     assert client.get("/admin/platform/ai").status_code == 401          # gated
     r = client.put("/admin/platform/ai", headers=superadmin_headers,
-                   json={"mode": "live", "model": "claude-opus-4-8", "api_key": "sk-ant-secret"})
+                   json={"mode": "live", "provider": "openai", "model": "gpt-4o-mini", "api_key": "sk-secret"})
     assert r.status_code == 200
     pub = r.json()
     assert pub["api_key"] == {"secret": True, "configured": True}        # never echoed
-    assert pub["mode"] == "live" and pub["model"] == "claude-opus-4-8"
+    assert pub["mode"] == "live" and pub["provider"] == "openai" and pub["model"] == "gpt-4o-mini"
     # and it's what the AI client reads (config-driven, hot-reload)
     from app.core import integration_config as cfg
     eff = cfg.get_effective("ai")
-    assert eff["mode"] == "live" and eff["api_key"] == "sk-ant-secret" and eff["model"] == "claude-opus-4-8"
+    assert (eff["mode"] == "live" and eff["provider"] == "openai"
+            and eff["api_key"] == "sk-secret" and eff["model"] == "gpt-4o-mini")

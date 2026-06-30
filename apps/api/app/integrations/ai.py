@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 
+from ..core.config import get_settings
 from ..core.integration_config import get_effective
 
 log = logging.getLogger("integrations.ai")
@@ -70,26 +71,67 @@ def _stub(message: str, ctx: dict) -> dict:
                     "queue status. What would you like to do?"}
 
 
+# Sensible per-provider default model when the operator hasn't picked one.
+_DEFAULT_MODEL = {"anthropic": "claude-opus-4-8", "openai": "gpt-4o-mini"}
+
+
+def _infer_anthropic(message: str, ctx: dict, aicfg: dict) -> dict:
+    """Claude via the Messages REST API (no SDK dependency)."""
+    import httpx
+    body = {
+        "model": aicfg.get("model") or _DEFAULT_MODEL["anthropic"],
+        "max_tokens": 512, "system": _system_prompt(ctx), "tools": _TOOLS,
+        "messages": [{"role": "user", "content": message or ""}],
+    }
+    r = httpx.post("https://api.anthropic.com/v1/messages", json=body, timeout=30.0,
+                   verify=get_settings().outbound_tls_verify,
+                   headers={"x-api-key": aicfg["api_key"], "anthropic-version": "2023-06-01",
+                            "content-type": "application/json"})
+    r.raise_for_status()
+    for block in r.json().get("content", []):
+        if block.get("type") == "tool_use":
+            return {"type": "action", "tool": block["name"], "args": dict(block.get("input") or {})}
+    text = "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text")
+    return {"type": "reply", "text": text or "Sorry, could you rephrase that?"}
+
+
+def _infer_openai(message: str, ctx: dict, aicfg: dict) -> dict:
+    """OpenAI via Chat Completions with function-calling (no SDK dependency)."""
+    import httpx
+    tools = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
+                                               "parameters": t["input_schema"]}} for t in _TOOLS]
+    body = {
+        "model": aicfg.get("model") or _DEFAULT_MODEL["openai"], "max_tokens": 512, "tools": tools,
+        "messages": [{"role": "system", "content": _system_prompt(ctx)},
+                     {"role": "user", "content": message or ""}],
+    }
+    r = httpx.post("https://api.openai.com/v1/chat/completions", json=body, timeout=30.0,
+                   verify=get_settings().outbound_tls_verify,
+                   headers={"Authorization": f"Bearer {aicfg['api_key']}", "Content-Type": "application/json"})
+    r.raise_for_status()
+    msg = r.json()["choices"][0]["message"]
+    for tc in (msg.get("tool_calls") or []):
+        fn = tc.get("function", {})
+        try:
+            args = json.loads(fn.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        return {"type": "action", "tool": fn.get("name"), "args": args}
+    return {"type": "reply", "text": msg.get("content") or "Sorry, could you rephrase that?"}
+
+
 def infer(message: str, ctx: dict) -> dict:
-    """Return the agent's next decision for an inbound message + clinic context.
-    AI config (mode/key/model) comes from the runtime config (superadmin platform tab), not code."""
+    """Return the agent's next decision for an inbound message + clinic context. AI config
+    (mode/provider/key/model) comes from runtime config (superadmin platform tab), not code.
+    Provider is operator-selectable: 'anthropic' (Claude) or 'openai'. Calls the provider's REST
+    API directly via httpx — no SDK dependency. Never breaks the webhook (falls back to the stub)."""
     aicfg = get_effective("ai")
     if aicfg.get("mode") != "live" or not aicfg.get("api_key"):
         return _stub(message, ctx)
+    provider = (aicfg.get("provider") or "anthropic").lower()
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=aicfg["api_key"])
-        resp = client.messages.create(
-            model=aicfg.get("model") or "claude-opus-4-8", max_tokens=512,
-            thinking={"type": "adaptive"}, output_config={"effort": "low"},
-            system=_system_prompt(ctx), tools=_TOOLS,
-            messages=[{"role": "user", "content": message or ""}],
-        )
-        for block in resp.content:
-            if block.type == "tool_use":
-                return {"type": "action", "tool": block.name, "args": dict(block.input or {})}
-        text = next((b.text for b in resp.content if b.type == "text"), "")
-        return {"type": "reply", "text": text or "Sorry, could you rephrase that?"}
+        return _infer_openai(message, ctx, aicfg) if provider == "openai" \
+            else _infer_anthropic(message, ctx, aicfg)
     except Exception as exc:                       # never break the webhook on an AI error
-        log.warning("ai.infer live failed: %s", exc, extra={"event": "ai.fail"})
+        log.warning("ai.infer live failed (provider=%s): %s", provider, exc, extra={"event": "ai.fail"})
         return _stub(message, ctx)

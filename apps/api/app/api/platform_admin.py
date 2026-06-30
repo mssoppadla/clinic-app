@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..core import integration_config as cfg
+from ..core.config import get_settings
 from ..core.db import system_session
 from ..core.errors import AppError
 from ..integrations import whatsapp
@@ -107,6 +108,41 @@ def test_platform_whatsapp(body: WhatsAppTest):
     return {"sent": res, "active_env": _get_active_env()}
 
 
+# ---- Meta-app webhook secrets (verify token + app secret) — one Meta app, all clinics --------
+
+def _webhook_path() -> str:
+    """Public path Meta calls, matching the app's root_path. Prod serves under /api/<ver> (the
+    front proxy forwards /api/* unstripped); local has no prefix. Prepend the origin in the UI."""
+    s = get_settings()
+    root = "" if s.env == "local" else f"/api/{s.api_version}"
+    return f"{root}/webhooks/whatsapp"
+
+
+@router.get("/webhook")
+def get_platform_webhook():
+    """Webhook config for the Meta app: callback path + verify token (visible, you paste it into
+    Meta) + whether the app secret is set (masked, write-only)."""
+    pub = cfg.get_public("platform_meta")
+    return {
+        "callback_path": _webhook_path(),
+        "verify_token": pub.get("verify_token") or "",
+        "app_secret": pub.get("app_secret", {"secret": True, "configured": False}),
+    }
+
+
+class WebhookCfg(BaseModel):
+    verify_token: str | None = None
+    app_secret: str | None = None       # write-only; blank keeps the existing one
+
+
+@router.put("/webhook")
+def set_platform_webhook(body: WebhookCfg):
+    """Store the verify token + app secret (config-driven, hot-reload — the webhook reads these at
+    request time, with env APP_WHATSAPP_VERIFY_TOKEN/APP_WHATSAPP_APP_SECRET as the fallback)."""
+    cfg.set_many("platform_meta", body.model_dump(exclude_none=True))
+    return get_platform_webhook()
+
+
 @router.get("/ai")
 def get_platform_ai():
     """Tovaitech's AI LLM config (Claude) — mode/model + whether a key is set (masked)."""
@@ -115,7 +151,8 @@ def get_platform_ai():
 
 class AiCfg(BaseModel):
     mode: str | None = None       # stub | live
-    model: str | None = None      # e.g. claude-opus-4-8
+    provider: str | None = None   # anthropic | openai
+    model: str | None = None      # e.g. claude-opus-4-8 / gpt-4o-mini
     api_key: str | None = None    # write-only
 
 
