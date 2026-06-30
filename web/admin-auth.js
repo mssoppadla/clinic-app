@@ -102,15 +102,53 @@
     };
   }
 
+  // Decode the (unverified) JWT payload — only for display; the server still verifies on every call.
+  function claims() {
+    try {
+      var t = token(); if (!t) return {};
+      return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) || {};
+    } catch (e) { return {}; }
+  }
+  var ROLE_LABELS = {
+    superadmin: "Platform admin", clinic_admin: "Clinic admin",
+    doctor: "Doctor", front_desk: "Front desk", triage: "Triage",
+  };
+  function roleLabel() {
+    var rs = (claims().roles || []).map(function (r) { return r.role; });
+    if (!rs.length) return "";
+    // superadmin trumps; otherwise show the first (most users have one role)
+    var pick = rs.indexOf("superadmin") >= 0 ? "superadmin" : rs[0];
+    return ROLE_LABELS[pick] || pick.replace(/_/g, " ");
+  }
+
   function mountLogout() {
-    if (!token() || document.getElementById("logoutBtn")) return;
+    if (!token() || document.getElementById("userChip")) return;
+    var c = claims();
+    var name = c.name || "Signed in";
+    var role = roleLabel();
+    var wrap = document.createElement("div");
+    wrap.id = "userChip";
+    wrap.style.cssText = "position:fixed;top:10px;right:12px;z-index:50;display:flex;align-items:center;gap:10px";
+    var who = document.createElement("div");
+    who.style.cssText = "display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;" +
+      "max-width:46vw;text-align:right";
+    who.innerHTML =
+      '<span style="font-size:.82rem;font-weight:600;color:var(--ink,#163a30);' +
+      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw">' + esc(name) + "</span>" +
+      (role ? '<span style="font-size:.68rem;color:var(--muted,#6b8079)">' + esc(role) + "</span>" : "");
     var b = document.createElement("button");
     b.id = "logoutBtn"; b.type = "button"; b.textContent = "Log out";
-    b.style.cssText = "position:fixed;top:10px;right:12px;z-index:50;padding:6px 12px;border-radius:8px;" +
+    b.style.cssText = "padding:6px 12px;border-radius:8px;" +
       "border:1px solid var(--line,#d9e2dc);background:var(--surface,#fff);color:var(--ink,#163a30);" +
-      "font-size:.8rem;cursor:pointer";
+      "font-size:.8rem;cursor:pointer;white-space:nowrap";
     b.onclick = window.logout;
-    document.body.appendChild(b);
+    wrap.appendChild(who); wrap.appendChild(b);
+    document.body.appendChild(wrap);
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
   }
   window.logout = function () { sessionStorage.removeItem(KEY); location.reload(); };
   window.requireLogin = function () { if (!token()) { loginView(); } else { mountLogout(); } };

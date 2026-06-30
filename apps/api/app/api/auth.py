@@ -57,14 +57,19 @@ def _find_by_identifier(db, ident: str):
     return db.query(User).filter((User.email == ident) | (User.username == ident)).first()
 
 
+def _display_name(user: User) -> str:
+    """Human label for the signed-in chip — email, else username, else short id."""
+    return user.email or user.username or f"user {user.id[:8]}"
+
+
 def _login_payload(db, user: User) -> dict:
     roles = _roles_for(db, user.id)
     return {
-        "access_token": create_access_token(sub=user.id, roles=roles),
+        "access_token": create_access_token(sub=user.id, roles=roles, name=_display_name(user)),
         "refresh_token": create_refresh_token(sub=user.id),
         "token_type": "bearer",
         "must_reset_password": user.must_reset_password,
-        "user": {"id": user.id, "email": user.email, "roles": roles},
+        "user": {"id": user.id, "email": user.email, "username": user.username, "roles": roles},
     }
 
 
@@ -104,7 +109,8 @@ def refresh(body: RefreshIn):
         user = db.query(User).filter(User.id == claims.get("sub")).first()
         if user is None or user.status != "active":
             raise AppError("invalid_token", "User no longer active.", status=401)
-        return {"access_token": create_access_token(sub=user.id, roles=_roles_for(db, user.id)),
+        return {"access_token": create_access_token(sub=user.id, roles=_roles_for(db, user.id),
+                                                    name=_display_name(user)),
                 "token_type": "bearer"}
 
 
