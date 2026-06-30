@@ -23,6 +23,26 @@
     sets its own number. Per-clinic numbers are configured on each clinic's own admin page.</p>
   <p class="hint">Active account: <b id="activeTag">…</b></p>
 
+  <section class="card" id="webhookCard" style="margin-bottom:14px">
+    <div class="cardhead"><h3>Webhook (Meta app)</h3><span id="whPill" class="pill n">…</span></div>
+    <p class="hint">One callback URL for the whole Meta app — inbound messages are routed to the
+      right clinic by the sending number. Paste the <b>Callback URL</b> and <b>Verify token</b> into
+      Meta → WhatsApp → Configuration, and subscribe to the <b>messages</b> field. The <b>App secret</b>
+      (Meta → App settings → Basic → Show) lets us verify Meta's request signatures.</p>
+    <div class="field"><label>Callback URL <span class="muted">(copy into Meta)</span></label>
+      <div style="display:flex;gap:8px">
+        <input class="input" id="wh_callback" readonly style="flex:1"/>
+        <button class="btn ghost" id="wh_copy" type="button">Copy</button>
+      </div></div>
+    <div class="field"><label>Verify token <span class="muted">(same value in Meta)</span></label>
+      <input class="input" id="wh_verify" placeholder="tovai_…"/></div>
+    <div class="field"><label>App secret <span class="muted">(write-only)</span></label>
+      <input class="input" id="wh_secret" type="password" placeholder="paste app secret"/>
+      <p class="hint" id="wh_secret_state"></p></div>
+    <button class="btn" id="wh_save" type="button">Save webhook config</button>
+    <div class="result hidden" id="wh_result" style="margin-top:8px"></div>
+  </section>
+
   <div class="grid2" id="envCards"></div>
 
   <section class="card" id="aiCard" style="margin-top:14px">
@@ -32,8 +52,11 @@
       (Clinics &amp; approvals → AI agent toggle); clinics without it use the menu flow.</p>
     <div class="field"><label>Mode</label>
       <select class="select" id="ai_mode"><option value="stub">Stub (no LLM calls)</option><option value="live">Live</option></select></div>
-    <div class="field"><label>Model</label><input class="input" id="ai_model" placeholder="claude-opus-4-8"/></div>
-    <div class="field"><label>Anthropic API key <span class="muted">(write-only)</span></label><input class="input" id="ai_key" type="password" placeholder="sk-ant-..."/><p class="hint" id="ai_key_state"></p></div>
+    <div class="field"><label>Provider</label>
+      <select class="select" id="ai_provider"><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI</option></select></div>
+    <div class="field"><label>Model</label>
+      <select class="select" id="ai_model"></select></div>
+    <div class="field"><label>API key <span class="muted">(write-only)</span></label><input class="input" id="ai_key" type="password" placeholder="sk-ant-… or sk-…"/><p class="hint" id="ai_key_state"></p></div>
     <button class="btn" id="ai_save" type="button">Save AI config</button>
     <div class="result hidden" id="ai_result" style="margin-top:8px"></div>
   </section>
@@ -79,7 +102,7 @@ function fillEnv(card, env, data){
 }
 
 function val(card, cls){ const v = card.querySelector(cls).value.trim(); return v===''? undefined : v; }
-function result(card, ok, msg){ const e=card.querySelector('.envResult'); e.className='result '+(ok?'ok':'bad'); e.textContent=msg; e.classList.remove('hidden'); }
+function result(card, ok, msg){ const e=card.querySelector('.envResult'); if(!e) return; e.className='result envResult '+(ok?'ok':'bad'); e.textContent=msg; }
 
 async function load(){
   clearError();
@@ -117,31 +140,74 @@ async function sendTest(env, card){
   const to = val(card,'.f_test_phone'); if(!to){ result(card, false, 'Enter a test number'); return; }
   const r = await authFetch(`${API}/admin/platform/whatsapp/test`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_phone:to})});
   const d = await r.json();
-  result(card, d.sent && d.sent.ok, d.sent ? ('mode='+d.sent.mode+(d.sent.ok?' · sent ✓':' · failed')) : 'error');
+  const s = d.sent || {};
+  const detail = s.ok ? ' · sent ✓' : (' · failed' + (s.error ? ': ' + s.error : ''));
+  result(card, s.ok, d.sent ? ('mode=' + s.mode + detail) : 'error');
 }
+
+// Known models per provider — populate the model dropdown. Operators pick; defaults are first.
+const AI_MODELS = {
+  anthropic: ['claude-opus-4-8','claude-sonnet-4-6','claude-haiku-4-5'],
+  openai: ['gpt-4o-mini','gpt-4o','gpt-4.1','gpt-4-turbo'],
+};
+function fillModelOptions(provider, selected){
+  const sel = $('#ai_model'); const list = AI_MODELS[provider] || [];
+  // keep a previously-saved custom model selectable even if not in the list
+  const opts = list.slice(); if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
+  sel.innerHTML = opts.map(m=>`<option value="${m}">${m}</option>`).join('');
+  sel.value = selected || (list[0]||'');
+}
+$('#ai_provider').onchange = ()=> fillModelOptions($('#ai_provider').value, null);
 
 async function loadAi(){
   const r = await authFetch(`${API}/admin/platform/ai`);
   if(!r.ok) return;
   const c = await r.json();
   $('#ai_mode').value = c.mode || 'stub';
-  $('#ai_model').value = c.model || '';
+  $('#ai_provider').value = c.provider || 'anthropic';
+  fillModelOptions($('#ai_provider').value, c.model || '');
   $('#ai_key_state').textContent = (c.api_key && c.api_key.configured) ? 'key configured ✓ (leave blank to keep)' : 'not set';
   const live = c.mode === 'live' && c.api_key && c.api_key.configured;
   $('#aiPill').className = 'pill ' + (live ? 'g' : 'n');
   $('#aiPill').textContent = live ? 'live · ready' : (c.mode === 'live' ? 'live · key missing' : 'stub');
 }
 $('#ai_save').onclick = async ()=>{
-  const body = { mode:$('#ai_mode').value, model:$('#ai_model').value.trim()||undefined, api_key:$('#ai_key').value.trim()||undefined };
+  const body = { mode:$('#ai_mode').value, provider:$('#ai_provider').value,
+    model:$('#ai_model').value.trim()||undefined, api_key:$('#ai_key').value.trim()||undefined };
   const r = await authFetch(`${API}/admin/platform/ai`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const e = $('#ai_result'); e.classList.remove('hidden');
   if(r.ok){ $('#ai_key').value=''; e.className='result ok'; e.textContent='Saved.'; loadAi(); }
   else { e.className='result bad'; e.textContent='Save failed ('+r.status+')'; }
 };
 
+async function loadWebhook(){
+  const r = await authFetch(`${API}/admin/platform/webhook`);
+  if(!r.ok) return;
+  const c = await r.json();
+  // Build the absolute callback URL from the API origin (prod) or fall back to the documented path.
+  const origin = (API.startsWith('http') ? API.replace(/\/api\/v1$/,'') : location.origin);
+  $('#wh_callback').value = origin.replace(/\/$/,'') + c.callback_path;
+  $('#wh_verify').value = c.verify_token || '';
+  const set = c.app_secret && c.app_secret.configured;
+  $('#wh_secret_state').textContent = set ? 'app secret configured ✓ (leave blank to keep)' : 'not set';
+  const ready = (c.verify_token && set);
+  $('#whPill').className = 'pill ' + (ready ? 'g' : 'n');
+  $('#whPill').textContent = ready ? 'ready' : 'incomplete';
+}
+$('#wh_copy').onclick = ()=>{ const i=$('#wh_callback'); i.select(); navigator.clipboard && navigator.clipboard.writeText(i.value); };
+$('#wh_save').onclick = async ()=>{
+  const body = { verify_token: $('#wh_verify').value.trim() || undefined,
+                 app_secret: $('#wh_secret').value.trim() || undefined };
+  const r = await authFetch(`${API}/admin/platform/webhook`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const e = $('#wh_result'); e.classList.remove('hidden');
+  if(r.ok){ $('#wh_secret').value=''; e.className='result ok'; e.textContent='Saved.'; loadWebhook(); }
+  else { e.className='result bad'; e.textContent='Save failed ('+r.status+')'; }
+};
+
 requireLogin();
 load();
 loadAi();
+loadWebhook();
 </script>
 </body>
 </html>

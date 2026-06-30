@@ -16,9 +16,8 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from ..core.config import get_settings
 from ..core.db import system_session
-from ..core.integration_config import find_clinic_by_whatsapp_number
+from ..core.integration_config import find_clinic_by_whatsapp_number, get_effective
 from ..domain.whatsapp_agent import handle_message
 from ..domain.whatsapp_routing import resolve_shared_clinic
 from ..integrations import whatsapp
@@ -33,7 +32,7 @@ def verify_webhook(request: Request):
     """Meta calls this once to verify the callback URL. Echo hub.challenge iff the token matches."""
     q = request.query_params
     mode, token, challenge = q.get("hub.mode"), q.get("hub.verify_token"), q.get("hub.challenge")
-    expected = get_settings().whatsapp_verify_token
+    expected = get_effective("platform_meta").get("verify_token")  # admin UI value, env fallback
     if mode == "subscribe" and expected and token == expected:
         return PlainTextResponse(challenge or "")
     return PlainTextResponse("forbidden", status_code=403)
@@ -89,9 +88,9 @@ def _ask_clinic(phone: str) -> None:
 async def receive_webhook(request: Request, background: BackgroundTasks):
     """Receive inbound messages. Always 200 quickly (Meta retries on non-2xx). Bad signature -> 403.
     The agent runs in the background so a slow AI call never blocks the webhook ack."""
-    s = get_settings()
+    app_secret = get_effective("platform_meta").get("app_secret")  # admin UI value, env fallback
     raw = await request.body()
-    if not _signature_ok(s.whatsapp_app_secret, raw, request.headers.get("X-Hub-Signature-256")):
+    if not _signature_ok(app_secret, raw, request.headers.get("X-Hub-Signature-256")):
         return PlainTextResponse("bad signature", status_code=403)
     try:
         payload = json.loads(raw or b"{}")

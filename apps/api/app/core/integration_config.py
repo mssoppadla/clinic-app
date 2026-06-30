@@ -26,9 +26,15 @@ FIELDS = {
     # AI LLM (Claude) for the WhatsApp agent — configured by the superadmin in the platform tab,
     # NOT hardcoded. Env values are only the bootstrap default; the DB value (set via the UI)
     # overrides them and hot-reloads (same pattern as whatsapp/bhashini).
-    "ai": {"mode": "ai_mode", "api_key": "anthropic_api_key", "model": "ai_model"},
+    "ai": {"mode": "ai_mode", "provider": "ai_provider", "api_key": "anthropic_api_key", "model": "ai_model"},
+    # Meta-app-level WhatsApp WEBHOOK secrets (one Tovaitech Meta app, shared by all clinics):
+    # the GET-handshake verify_token and the app_secret used to verify X-Hub-Signature-256.
+    # Set in the platform admin UI; env (APP_WHATSAPP_VERIFY_TOKEN/APP_WHATSAPP_APP_SECRET) is
+    # only the bootstrap fallback. (The active test/live SENDING account lives under "whatsapp".)
+    "platform_meta": {"verify_token": "whatsapp_verify_token", "app_secret": "whatsapp_app_secret"},
 }
-SECRETS = {"whatsapp": {"token"}, "bhashini": {"api_key"}, "ai": {"api_key"}}
+SECRETS = {"whatsapp": {"token"}, "bhashini": {"api_key"}, "ai": {"api_key"},
+           "platform_meta": {"app_secret"}}
 
 
 def _env_default(field: str | None) -> str:

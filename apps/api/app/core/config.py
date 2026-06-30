@@ -74,13 +74,26 @@ class Settings(BaseSettings):
     whatsapp_verify_token: str = ""     # secret - you choose it; paste the same value in Meta
     whatsapp_app_secret: str = ""       # secret - Meta App → Settings → Basic
 
-    # --- AI agent (Claude) that reads patient messages, infers intent, and replies ---
+    # --- AI agent that reads patient messages, infers intent, and replies ---
+    # Provider is operator-selectable (Anthropic Claude or OpenAI), set in the platform admin UI.
     ai_mode: Literal["stub", "live"] = "stub"
+    ai_provider: Literal["anthropic", "openai"] = "anthropic"
     ai_model: str = "claude-opus-4-8"
-    anthropic_api_key: str = ""         # secret - from env only
+    anthropic_api_key: str = ""         # secret - from env only (the AI api_key, any provider)
     # Confirm a booking/cancel with the patient before committing. Per-clinic override lives in
     # integration_config (provider "whatsapp", key "ai_confirm"); this is the platform default.
     ai_confirm_before_action: bool = True
+
+    # DEV/LOCAL ONLY: skip outbound TLS verification for integration calls (WhatsApp/Claude).
+    # Needed on dev machines behind an HTTPS-intercepting proxy/antivirus that presents a cert
+    # chain Python rejects. Opt-in (APP_INSECURE_SKIP_TLS_VERIFY=1) AND ignored unless env != prod
+    # — production ALWAYS verifies. Never set this on the VPS.
+    insecure_skip_tls_verify: bool = False
+
+    @property
+    def outbound_tls_verify(self) -> bool:
+        """True = verify certs (always in prod). Only non-prod may opt out via the flag above."""
+        return not (self.insecure_skip_tls_verify and self.env != "prod")
 
     # default UI languages; English ('en') is ALWAYS present (A15)
     default_languages: str = "en,ml"

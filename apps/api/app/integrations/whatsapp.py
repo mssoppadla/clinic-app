@@ -7,6 +7,7 @@ import logging
 
 import httpx
 
+from ..core.config import get_settings
 from ..core.integration_config import get_effective
 
 log = logging.getLogger("integrations.whatsapp")
@@ -30,7 +31,8 @@ class WhatsAppClient:
             url = f"{cfg['base_url']}/{cfg['phone_number_id']}/messages"
             body = {"messaging_product": "whatsapp", "to": to_phone, "type": "template",
                     "template": {"name": template, "language": {"code": params.get("lang", "en")}}}
-            resp = httpx.post(url, json=body, headers={"Authorization": f"Bearer {cfg['token']}"}, timeout=10.0)
+            resp = httpx.post(url, json=body, headers={"Authorization": f"Bearer {cfg['token']}"},
+                              timeout=10.0, verify=get_settings().outbound_tls_verify)
             resp.raise_for_status()
             return {"ok": True, "mode": "live", "id": resp.json().get("messages", [{}])[0].get("id")}
         except Exception as exc:
@@ -49,7 +51,8 @@ class WhatsAppClient:
             url = f"{cfg['base_url']}/{cfg['phone_number_id']}/messages"
             body = {"messaging_product": "whatsapp", "to": to_phone, "type": "text",
                     "text": {"body": text}}
-            resp = httpx.post(url, json=body, headers={"Authorization": f"Bearer {cfg['token']}"}, timeout=10.0)
+            resp = httpx.post(url, json=body, headers={"Authorization": f"Bearer {cfg['token']}"},
+                              timeout=10.0, verify=get_settings().outbound_tls_verify)
             resp.raise_for_status()
             return {"ok": True, "mode": "live", "id": resp.json().get("messages", [{}])[0].get("id")}
         except Exception as exc:
