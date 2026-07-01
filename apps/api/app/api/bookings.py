@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from ..core.config import Settings
 from ..core.db import TenantScope, session_scope
 from ..domain import booking as domain
-from ..integrations import whatsapp
+from ..domain import notifications
 from .deps import STAFF_ROLES, get_tenant, require_clinic_staff, settings_dep
 from .schemas import BookingCreate
 
@@ -31,13 +31,11 @@ def create_booking(
             scope, settings, payload=body.model_dump(),
             idempotency_key=idempotency_key, actor=actor,
         )
-    # fire confirmation outside the txn; never fails the booking
+    # fire confirmation outside the txn; never fails the booking. The dispatcher resolves the
+    # clinic's template + its proper params from the booking, sends, logs, and meters (once).
     if created:
-        whatsapp().send_template(
-            tenant_id=tenant["id"], to_phone=body.contact_phone,
-            template="booking_confirmed",
-            params={"token": view["tokens"][0]["number"], "lang": tenant["languages"][0]},
-        )
+        notifications.notify(event_type="booking_confirmed", tenant_id=tenant["id"],
+                             to_phone=body.contact_phone, booking_id=view["id"])
     status = 201 if created else 200
     return JSONResponse(status_code=status, content=view, headers={"X-Trace-Id": trace_id})
 

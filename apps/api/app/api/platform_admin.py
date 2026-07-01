@@ -107,7 +107,7 @@ class WhatsAppTest(BaseModel):
 def test_platform_whatsapp(body: WhatsAppTest):
     """Send a test message using Tovaitech's active platform account."""
     res = whatsapp().send_template(tenant_id="__platform__", to_phone=body.to_phone,
-                                   template=body.template, params={"lang": body.language})
+                                   template=body.template, language=body.language)
     return {"sent": res, "active_env": _get_active_env()}
 
 

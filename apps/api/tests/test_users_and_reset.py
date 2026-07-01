@@ -94,7 +94,7 @@ def test_forgot_reset_by_username(client, superadmin_headers):
     SENT_STUB.clear()
     assert client.post("/auth/forgot", json={"identifier": "nurse1"}).status_code == 200
     assert SENT_STUB
-    code = SENT_STUB[-1]["params"]["code"]
+    code = SENT_STUB[-1]["body_params"][0]
     assert client.post("/auth/reset",
                        json={"identifier": "nurse1", "otp": code, "new_password": "newpass999"}).status_code == 200
     assert _login(client, "nurse1", "newpass999")["must_reset_password"] is False
@@ -116,7 +116,7 @@ def test_forgot_then_reset_via_whatsapp_otp(client):
     SENT_STUB.clear()
     assert client.post("/auth/forgot", json={"email": "reset@c.com"}).status_code == 200
     assert SENT_STUB, "OTP should be sent via the WhatsApp stub"
-    code = SENT_STUB[-1]["params"]["code"]
+    code = SENT_STUB[-1]["body_params"][0]
 
     assert client.post("/auth/reset",
                        json={"email": "reset@c.com", "otp": "000000", "new_password": "brandnew123"}).status_code == 400

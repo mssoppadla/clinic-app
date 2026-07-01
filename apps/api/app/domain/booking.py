@@ -161,9 +161,8 @@ def create_booking(scope: TenantScope, settings: Settings, *, payload: dict,
     _append_event(scope, event_type="BookingConfirmed", aggregate_id=booking.id,
                   payload={"tokens": len(patients)}, actor=actor, idem=idempotency_key)
 
-    # 4) meter the (stub) WhatsApp confirmation as a usage event (FinOps seam)
-    scope.add(UsageEvent(tenant_id=scope.tenant_id, provider="whatsapp", kind="message", units=1,
-                         meta={"template": "booking_confirmed"}))
+    # The WhatsApp confirmation (send + meter + log) is dispatched post-commit by the API layer
+    # via domain.notifications.notify("booking_confirmed"), so it isn't re-sent on an idempotent replay.
 
     view = _booking_view(scope, booking)
 

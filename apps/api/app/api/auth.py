@@ -164,7 +164,7 @@ def forgot_password(body: ForgotIn):
                               db.query(UserRole).filter(UserRole.user_id == u.id).all()
                               if r.tenant_id), "")
             whatsapp().send_template(tenant_id=tenant_id or "", to_phone=u.phone,
-                                     template="auth_otp", params={"code": code, "lang": "en"})
+                                     template="auth_otp", language="en", body_params=[code])
             log.info("auth.forgot otp sent user=%s", u.id)
     return {"ok": True,
             "message": "If that account exists, a reset code has been sent to its WhatsApp number."}
@@ -222,7 +222,7 @@ def patient_otp_request(body: OtpRequestIn, tenant: dict = Depends(get_tenant)):
                             purpose=f"patient_login:{tenant['id']}", code_hash=hash_password(code),
                             expires_at=_utcnow() + timedelta(minutes=_OTP_TTL_MIN)))
         whatsapp().send_template(tenant_id=tenant["id"], to_phone=phone, template="auth_otp",
-                                 params={"code": code, "lang": tenant["languages"][0]})
+                                 language=tenant["languages"][0], body_params=[code])
         log.info("auth.patient_otp sent tenant=%s", tenant["id"])
     return {"ok": True, "message": "A verification code has been sent to your WhatsApp."}
 

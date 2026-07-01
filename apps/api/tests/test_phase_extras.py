@@ -25,7 +25,7 @@ def test_patient_otp_login(client, canary):
     SENT_STUB.clear()
     assert client.post("/auth/otp/request", headers=h, json={"phone": "+919811111111"}).status_code == 200
     assert SENT_STUB, "patient OTP should be sent via WhatsApp stub"
-    code = SENT_STUB[-1]["params"]["code"]
+    code = SENT_STUB[-1]["body_params"][0]
     assert client.post("/auth/otp/verify", headers=h,
                        json={"phone": "+919811111111", "otp": "000000"}).status_code == 400
     v = client.post("/auth/otp/verify", headers=h, json={"phone": "+919811111111", "otp": code})

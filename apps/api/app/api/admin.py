@@ -114,7 +114,7 @@ class WhatsAppTest(BaseModel):
 @router.post("/whatsapp/test")
 def test_whatsapp(body: WhatsAppTest, ctx: dict = Depends(require_clinic_staff("clinic_admin"))):
     res = whatsapp().send_template(tenant_id=ctx["tenant"]["id"], to_phone=body.to_phone,
-                                   template=body.template, params={"lang": "en"})
+                                   template=body.template, language="en_US")
     return {"sent": res}
 
 

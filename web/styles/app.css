@@ -152,3 +152,15 @@ html.embed .wrap{padding-top:14px;padding-bottom:24px}
 .icbadge svg{width:20px;height:20px}
 .icbadge.wa{background:#25D366}                                   /* WhatsApp brand green */
 .icbadge.bh{background:linear-gradient(135deg,#FF8A00,#EA580C)}   /* Bhashini saffron */
+
+/* ---- shared-number booking link + QR (clinic admin front-door) ---- */
+.washare{margin-top:8px;border:1px solid var(--line);border-radius:var(--r2);padding:12px;background:var(--bg)}
+.washare h4{margin:0 0 2px;font-size:.92rem;color:var(--ink)}
+.washare .hint{margin:0 0 8px}
+.washare .row{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.washare .col{flex:1 1 240px;min-width:200px}
+.washare .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.washare .qr{flex:0 0 auto}
+.washare .qr img{display:block;width:148px;height:148px;image-rendering:pixelated;
+  border:1px solid var(--line);border-radius:var(--r3);background:var(--card);padding:6px}
+.washare .qr figcaption{margin:4px 0 0;text-align:center;font-size:.68rem;color:var(--muted)}

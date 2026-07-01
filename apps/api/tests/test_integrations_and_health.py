@@ -23,6 +23,8 @@ def test_whatsapp_confirmation_sent_on_booking(client, canary):
     assert r.status_code == 201
     assert len(SENT_STUB) == 1
     assert SENT_STUB[0]["template"] == "booking_confirmed"
+    # the token variable is actually carried as a body param now (was silently dropped before)
+    assert SENT_STUB[0]["body_params"] == [r.json()["tokens"][0]["number"]]
 
 
 def test_bhashini_fallback_translates_known_keys(canary):
