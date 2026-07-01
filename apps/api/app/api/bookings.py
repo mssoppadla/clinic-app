@@ -35,8 +35,8 @@ def create_booking(
     if created:
         whatsapp().send_template(
             tenant_id=tenant["id"], to_phone=body.contact_phone,
-            template="booking_confirmed",
-            params={"token": view["tokens"][0]["number"], "lang": tenant["languages"][0]},
+            template="booking_confirmed", language=tenant["languages"][0],
+            body_params=[view["tokens"][0]["number"]],
         )
     status = 201 if created else 200
     return JSONResponse(status_code=status, content=view, headers={"X-Trace-Id": trace_id})

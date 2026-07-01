@@ -209,7 +209,7 @@ class TestTwoHospitalJourney:
         SENT_STUB.clear()
         req = client.post("/auth/otp/request", headers={"X-Clinic-Slug": a}, json={"phone": "+919812300000"})
         assert req.status_code == 200 and SENT_STUB
-        code = SENT_STUB[-1]["params"]["code"]
+        code = SENT_STUB[-1]["body_params"][0]
         # the code issued for clinic A must not verify on clinic B
         wrong = client.post("/auth/otp/verify", headers={"X-Clinic-Slug": b},
                             json={"phone": "+919812300000", "otp": code})

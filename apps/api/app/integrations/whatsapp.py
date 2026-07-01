@@ -15,22 +15,27 @@ SENT_STUB: list[dict] = []  # inspectable by tests
 
 
 class WhatsAppClient:
-    def send_template(self, *, tenant_id: str, to_phone: str, template: str, params: dict) -> dict:
+    def send_template(self, *, tenant_id: str, to_phone: str, template: str,
+                      language: str = "en_US", body_params: list | None = None) -> dict:
+        """Send a pre-approved template. body_params fill the body's {{1}}..{{n}} variables IN ORDER
+        (previously dropped — templates with variables were sent empty). Never raises."""
         cfg = get_effective("whatsapp", tenant_id=tenant_id)
+        body_params = [str(p) for p in (body_params or [])]
         if cfg.get("mode") != "live" or not cfg.get("token"):
-            SENT_STUB.append({"tenant_id": tenant_id, "to": to_phone, "template": template, "params": params})
-            # stub mode = dev/test only (prod flips to live). Surface the OTP so local testers
-            # can complete the WhatsApp-OTP flow without a real message; never reached in prod.
-            if params.get("code"):
-                log.info("whatsapp stub send template=%s to=%s OTP=%s", template, to_phone, params["code"],
-                         extra={"event": "wa.stub", "tenant_id": tenant_id})
-            else:
-                log.info("whatsapp stub send", extra={"event": "wa.stub", "tenant_id": tenant_id})
+            SENT_STUB.append({"tenant_id": tenant_id, "to": to_phone, "template": template,
+                              "language": language, "body_params": body_params})
+            # stub = dev/test only (prod flips to live). Surface any code (OTP) so local testers can
+            # complete the flow without a real message; never reached in prod.
+            log.info("whatsapp stub send template=%s to=%s params=%s", template, to_phone, body_params,
+                     extra={"event": "wa.stub", "tenant_id": tenant_id})
             return {"ok": True, "mode": "stub"}
         try:
             url = f"{cfg['base_url']}/{cfg['phone_number_id']}/messages"
-            body = {"messaging_product": "whatsapp", "to": to_phone, "type": "template",
-                    "template": {"name": template, "language": {"code": params.get("lang", "en")}}}
+            tpl: dict = {"name": template, "language": {"code": language}}
+            if body_params:
+                tpl["components"] = [{"type": "body",
+                                      "parameters": [{"type": "text", "text": p} for p in body_params]}]
+            body = {"messaging_product": "whatsapp", "to": to_phone, "type": "template", "template": tpl}
             resp = httpx.post(url, json=body, headers={"Authorization": f"Bearer {cfg['token']}"},
                               timeout=10.0, verify=get_settings().outbound_tls_verify)
             resp.raise_for_status()
