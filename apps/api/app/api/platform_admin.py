@@ -98,13 +98,16 @@ def activate_platform_whatsapp(body: ActivateIn):
 class WhatsAppTest(BaseModel):
     to_phone: str
     template: str = "hello_world"
+    # Meta's sample "hello_world" template is registered as en_US; the language code must match a
+    # language the template is approved in, or Graph 400s. Overridable for other templates.
+    language: str = "en_US"
 
 
 @router.post("/whatsapp/test")
 def test_platform_whatsapp(body: WhatsAppTest):
     """Send a test message using Tovaitech's active platform account."""
     res = whatsapp().send_template(tenant_id="__platform__", to_phone=body.to_phone,
-                                   template=body.template, params={"lang": "en"})
+                                   template=body.template, params={"lang": body.language})
     return {"sent": res, "active_env": _get_active_env()}
 
 

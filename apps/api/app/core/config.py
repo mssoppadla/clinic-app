@@ -58,7 +58,8 @@ class Settings(BaseSettings):
 
     # --- integrations: provider mode is swappable (stub now, live when creds arrive) ---
     whatsapp_mode: Literal["stub", "live"] = "stub"
-    whatsapp_base_url: str = "https://graph.facebook.com/v21.0"
+    # Graph API version — keep current; Meta retires old versions (e.g. v21.0) and they 404.
+    whatsapp_base_url: str = "https://graph.facebook.com/v23.0"
     whatsapp_token: str = ""            # secret - from env only
     whatsapp_phone_number_id: str = ""  # per-clinic; from env/tenant_config
 
