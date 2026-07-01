@@ -41,6 +41,8 @@ class Tenant(Base):
     contact_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(200), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # IANA timezone for reminder offsets + human-readable date/time in WhatsApp templates.
+    timezone: Mapped[str] = mapped_column(String(40), default="Asia/Kolkata")
 
 
 class User(Base):
@@ -290,3 +292,62 @@ class WhatsAppBinding(Base):
     tenant_id: Mapped[str] = mapped_column(String(36), index=True)
     phone: Mapped[str] = mapped_column(String(40), unique=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class MessageTemplate(Base):
+    """A WhatsApp message template we know about, on a specific WABA (scope). Owned by the platform
+    (scope='platform') or a clinic with its own WABA (scope='clinic:<tenant_id>'). Created + submitted
+    to Meta from the admin UI; Meta approves asynchronously (meta_status). scope-based (not tenant_id),
+    so — like integration_config — it is NOT RLS-isolated and is read via a system session."""
+    __tablename__ = "message_templates"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scope: Mapped[str] = mapped_column(String(60), index=True)          # platform | clinic:<tenant_id>
+    event_type: Mapped[str | None] = mapped_column(String(40), nullable=True)  # booking_confirmed | reminder | ...
+    meta_name: Mapped[str] = mapped_column(String(200))                 # the Meta template name
+    language: Mapped[str] = mapped_column(String(10), default="en_US")
+    category: Mapped[str] = mapped_column(String(20), default="UTILITY")  # UTILITY|MARKETING|AUTHENTICATION
+    components: Mapped[dict] = mapped_column(JSON, default=dict)         # header/body/footer/buttons (as sent to Meta)
+    param_map: Mapped[list] = mapped_column(JSON, default=list)         # ordered resolver keys for {{1}}..{{n}}
+    meta_status: Mapped[str] = mapped_column(String(20), default="draft")  # draft|pending|approved|rejected|disabled
+    meta_template_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    __table_args__ = (UniqueConstraint("scope", "meta_name", "language", name="uq_template_scope_name_lang"),)
+
+
+class ClinicMessageSetting(Base):
+    """Per-clinic, per-event notification config: whether it's on, which template, language, the
+    clinic's static variables (display name/address/footer) and — for reminders — the offsets.
+    tenant-owned -> RLS-isolated."""
+    __tablename__ = "clinic_message_settings"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    event_type: Mapped[str] = mapped_column(String(40))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    template_id: Mapped[str | None] = mapped_column(String(36), nullable=True)   # -> message_templates.id
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)      # override; else clinic default
+    variables: Mapped[dict] = mapped_column(JSON, default=dict)                  # display_name/address/footer/...
+    reminder_offsets: Mapped[list | None] = mapped_column(JSON, nullable=True)   # minutes-before, e.g. [1440, 180]
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    __table_args__ = (UniqueConstraint("tenant_id", "event_type", name="uq_clinic_event"),)
+
+
+class Notification(Base):
+    """One outbound notification (delivery log + the idempotency claim). The unique dedupe_key means
+    a given (booking, event, offset) is sent at most once, even across worker replicas.
+    tenant-owned -> RLS-isolated."""
+    __tablename__ = "notifications"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True)
+    booking_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(40))
+    template_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    to_phone: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(12), default="queued")   # queued|sent|failed|skipped
+    dedupe_key: Mapped[str] = mapped_column(String(160), unique=True)
+    wa_message_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

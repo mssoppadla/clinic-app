@@ -27,6 +27,7 @@ TENANT_TABLES = [
     "doctors", "sessions", "slots", "patients", "consents", "booking_events", "bookings",
     "booking_patients", "tokens", "queue_entries", "idempotency_keys", "usage_events",
     "whatsapp_messages", "whatsapp_pending", "whatsapp_binding",
+    "clinic_message_settings", "notifications",
 ]
 
 _POLICY = "tenant_isolation"
