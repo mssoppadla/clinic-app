@@ -78,7 +78,9 @@ class OtpChallenge(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     destination: Mapped[str] = mapped_column(String(120), default="")   # phone the OTP was sent to
-    purpose: Mapped[str] = mapped_column(String(30), default="password_reset")
+    # Holds 'patient_login:<uuid>' (14 + 36 = 50) as well as 'password_reset'. Postgres enforces
+    # the varchar length (SQLite doesn't) so a too-short column 500s only in prod. [see 0014]
+    purpose: Mapped[str] = mapped_column(String(80), default="password_reset")
     code_hash: Mapped[str] = mapped_column(String(200))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
@@ -248,7 +250,9 @@ class IntegrationConfig(Base):
     __tablename__ = "integration_config"
     __table_args__ = (UniqueConstraint("scope", "provider", "key", name="uq_intcfg"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    scope: Mapped[str] = mapped_column(String(40), default="platform")
+    # Long enough for 'clinic:<uuid>' (7 + 36 = 43) and 'platform:<env>'. Postgres enforces the
+    # varchar length (SQLite doesn't), so a too-short scope 500s only in prod. [see 0014]
+    scope: Mapped[str] = mapped_column(String(80), default="platform")
     provider: Mapped[str] = mapped_column(String(40))     # whatsapp | bhashini
     key: Mapped[str] = mapped_column(String(60))
     value: Mapped[str] = mapped_column(Text, default="")
