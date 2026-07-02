@@ -94,3 +94,15 @@ def test_duplicate_name_gets_unique_slug(client):
     b = client.post("/onboarding/clinic", json={"name": "City Hospital"}).json()
     assert a["slug"] == "city-hospital"
     assert b["slug"] == "city-hospital-2"
+
+
+def test_unique_slug_stays_within_80_on_collision(client):
+    """A long name slugifies to <=80; a collision appends -N WITHOUT overflowing Tenant.slug
+    varchar(80) — else Postgres 500s where SQLite silently truncates."""
+    long_name = ("Very Long Clinic Name " * 6).strip()  # -> a long slug, capped at 80
+    first = client.post("/onboarding/clinic", json={"name": long_name})
+    second = client.post("/onboarding/clinic", json={"name": long_name})
+    assert first.status_code == 201 and second.status_code == 201
+    s1, s2 = first.json()["slug"], second.json()["slug"]
+    assert len(s1) <= 80 and len(s2) <= 80
+    assert s1 != s2

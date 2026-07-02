@@ -85,7 +85,10 @@ def _unique_slug(db, desired: str) -> str:
     candidate = base
     while db.query(Tenant).filter(Tenant.slug == candidate).first() is not None:
         n += 1
-        candidate = f"{base}-{n}"
+        suffix = f"-{n}"
+        # keep within Tenant.slug varchar(80): trim the base so base+suffix never overflows
+        # (slugify already caps at 80, but the -N suffix could push a full-length base over).
+        candidate = f"{base[:80 - len(suffix)].rstrip('-')}{suffix}"
     return candidate
 
 
